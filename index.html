@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>큐브 스터디 랩</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;700&family=JetBrains+Mono:wght@500;700&display=swap">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+      <div>
+        <h1>큐브 스터디 랩</h1>
+        <p class="tagline">돌려 보고, 공식이 왜 필요한지 배우는 큐브 연습장</p>
+      </div>
+    </div>
+    <div class="stats" aria-live="polite">
+      <div class="stat"><span class="stat-label">시간</span><span class="stat-value" id="timer">00:00.00</span></div>
+      <div class="stat"><span class="stat-label">이동</span><span class="stat-value" id="moveCount">0</span></div>
+      <div class="stat"><span class="stat-label">최고 기록</span><span class="stat-value" id="best">—</span></div>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="stage-wrap">
+      <div class="stage" id="stage" tabindex="0" aria-label="큐브 화면. 드래그로 돌리고 키보드로 조작합니다.">
+        <div class="hud hud-top">
+          <span class="chip" id="hudFront">정면 F</span>
+          <span class="chip chip-dim" id="hudDepth" hidden>층 선택</span>
+        </div>
+        <div class="banner" id="banner" hidden>
+          <strong id="bannerTitle">완성!</strong>
+          <span id="bannerText"></span>
+          <button class="btn btn-accent" id="bannerBtn" type="button">다시 섞기</button>
+        </div>
+        <div class="toast" id="toast" hidden></div>
+      </div>
+      <div class="pad" id="pad" aria-label="이동 버튼 (보는 방향 기준)"></div>
+    </section>
+
+    <aside class="panel">
+      <section class="block">
+        <h2 class="block-title">퍼즐</h2>
+        <div class="seg" id="puzzles" role="radiogroup" aria-label="퍼즐 크기"></div>
+      </section>
+
+      <section class="block">
+        <h2 class="block-title">모드</h2>
+        <div class="seg seg-2" role="radiogroup" aria-label="모드">
+          <button type="button" class="seg-btn" data-mode="free" id="modeFree" role="radio">혼자 풀기<small>타이머 · 기록</small></button>
+          <button type="button" class="seg-btn" data-mode="study" id="modeStudy" role="radio">스터디<small>상황별 공식 안내</small></button>
+        </div>
+        <div class="row-actions">
+          <button type="button" class="btn btn-accent" id="btnScramble">섞기</button>
+          <button type="button" class="btn" id="btnUndo">되돌리기</button>
+          <button type="button" class="btn" id="btnReset">초기화</button>
+        </div>
+      </section>
+
+      <section class="block study" id="study" hidden>
+        <div id="studyBody"></div>
+      </section>
+
+      <section class="block">
+        <details class="keys" id="keysBox" open>
+          <summary class="block-title">조작법</summary>
+          <p class="note">모든 키는 <b>지금 보이는 방향</b> 기준입니다. 정면에 보이는 면이 F입니다.</p>
+          <table class="keytable">
+            <tbody>
+              <tr><td><kbd>W</kbd> + <kbd>←</kbd> / <kbd>→</kbd></td><td>윗층 왼쪽(U) / 오른쪽(U')</td></tr>
+              <tr><td><kbd>S</kbd> + <kbd>→</kbd> / <kbd>←</kbd></td><td>아래층 오른쪽(D) / 왼쪽(D')</td></tr>
+              <tr><td><kbd>D</kbd> + <kbd>↑</kbd> / <kbd>↓</kbd></td><td>오른쪽 줄 위로(R) / 아래로(R')</td></tr>
+              <tr><td><kbd>A</kbd> + <kbd>↓</kbd> / <kbd>↑</kbd></td><td>왼쪽 줄 아래로(L) / 위로(L')</td></tr>
+              <tr><td><kbd>E</kbd> / <kbd>Q</kbd></td><td>앞면 시계(F) / 반시계(F')</td></tr>
+              <tr><td><kbd>Z</kbd> / <kbd>C</kbd></td><td>뒷면 B / B'</td></tr>
+              <tr><td><kbd>←</kbd> <kbd>→</kbd> <kbd>↑</kbd> <kbd>↓</kbd> 만</td><td>보는 방향 바꾸기 (큐브는 그대로)</td></tr>
+              <tr><td><kbd>Shift</kbd> + 방향키</td><td>큐브 전체 돌리기 (x, y)</td></tr>
+              <tr><td><kbd>Shift</kbd> + <kbd>E</kbd>/<kbd>Q</kbd></td><td>큐브 전체 기울이기 (z / z')</td></tr>
+              <tr><td>숫자 <kbd>2</kbd>~<kbd>4</kbd> 후 이동키</td><td>안쪽 층만 돌리기 (4×4 이상, 3×3 가운데층)</td></tr>
+              <tr><td><kbd>Shift</kbd> + <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 조합</td><td>바깥 2층 함께 (Rw, Uw…)</td></tr>
+              <tr><td><kbd>Space</kbd> / <kbd>Enter</kbd></td><td>스터디: 다음 한 수 / 현재 공식 끝까지 자동</td></tr>
+              <tr><td><kbd>Backspace</kbd></td><td>되돌리기</td></tr>
+            </tbody>
+          </table>
+          <p class="note">마우스: 스티커를 끌면 그 줄이 돌아가고, 빈 곳을 끌면 시점이 바뀝니다. 터치도 같습니다.</p>
+        </details>
+      </section>
+
+      <section class="block">
+        <details class="keys">
+          <summary class="block-title">표기법 읽는 법</summary>
+          <table class="keytable">
+            <tbody>
+              <tr><td class="mono">R</td><td>오른쪽 면을 그 면을 바라봤을 때 시계 방향으로 90°</td></tr>
+              <tr><td class="mono">R'</td><td>반시계 방향 90° (프라임)</td></tr>
+              <tr><td class="mono">R2</td><td>180° (두 번)</td></tr>
+              <tr><td class="mono">U D F B L</td><td>위 · 아래 · 앞 · 뒤 · 왼쪽 면</td></tr>
+              <tr><td class="mono">x y z</td><td>큐브 전체 회전 (x는 R 방향, y는 U 방향, z는 F 방향)</td></tr>
+              <tr><td class="mono">M E S</td><td>3×3 가운데층 (M은 L 방향)</td></tr>
+              <tr><td class="mono">Rw / 2R</td><td>바깥 2층 함께 / 안쪽 2번째 층만</td></tr>
+            </tbody>
+          </table>
+        </details>
+      </section>
+    </aside>
+  </main>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="js/cube.js"></script>
+<script src="js/tutor.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

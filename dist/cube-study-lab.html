@@ -1,0 +1,1925 @@
+<title>큐브 스터디 랩</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;700&family=JetBrains+Mono:wght@500;700&display=swap">
+<style>
+/* 레이아웃: 왼쪽 큰 작업대(큐브 매트) + 오른쪽 학습 패널. 좁은 화면에서는 위아래로 쌓임. 어두운 매트 한 가지 테마로 고정. */
+:root {
+  --mat: #12181d;
+  --mat-2: #182027;
+  --mat-3: #1f2932;
+  --line: #2b3742;
+  --ink: #e9eef2;
+  --ink-dim: #93a3b0;
+  --accent: #f6c445;
+  --accent-ink: #1d1604;
+  --ok: #43c97f;
+  --warn: #ff8f45;
+  --grid: rgba(147, 163, 176, 0.07);
+  --f-body: 'IBM Plex Sans KR', 'Apple SD Gothic Neo', 'Malgun Gothic', system-ui, sans-serif;
+  --f-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+  --r: 10px;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { height: 100%; }
+body {
+  margin: 0;
+  background: var(--mat);
+  color: var(--ink);
+  font-family: var(--f-body);
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.app {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 14px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* ---------- 상단 ---------- */
+.topbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 24px;
+}
+.brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.brand-mark {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px;
+  width: 34px; height: 34px;
+  padding: 3px;
+  border-radius: 7px;
+  background: #0b0f12;
+  flex: none;
+}
+.brand-mark i { border-radius: 2px; }
+.brand-mark i:nth-child(1) { background: #ffd500; }
+.brand-mark i:nth-child(2) { background: #ff6a00; }
+.brand-mark i:nth-child(3) { background: #009b48; }
+.brand-mark i:nth-child(4) { background: #f4f4f0; }
+h1 { margin: 0; font-size: 20px; font-weight: 700; letter-spacing: -0.01em; }
+.tagline { margin: 0; color: var(--ink-dim); font-size: 13px; }
+
+.stats { display: flex; gap: 8px; flex-wrap: wrap; }
+.stat {
+  display: flex; flex-direction: column;
+  padding: 6px 14px;
+  background: var(--mat-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  min-width: 92px;
+}
+.stat-label { font-size: 11px; color: var(--ink-dim); letter-spacing: 0.06em; }
+.stat-value { font-family: var(--f-mono); font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+/* ---------- 본문 ---------- */
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 400px;
+  gap: 16px;
+  align-items: start;
+}
+.stage-wrap { display: flex; flex-direction: column; gap: 10px; min-width: 0; position: sticky; top: env(safe-area-inset-top, 0px); }
+
+.stage {
+  position: relative;
+  height: min(76vh, 760px);
+  min-height: 340px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  overflow: hidden;
+  touch-action: none;
+  cursor: grab;
+  outline: none;
+  background:
+    linear-gradient(var(--grid) 1px, transparent 1px) 0 0 / 32px 32px,
+    linear-gradient(90deg, var(--grid) 1px, transparent 1px) 0 0 / 32px 32px,
+    radial-gradient(ellipse at 50% 42%, #1e2a33 0%, var(--mat) 72%);
+}
+.stage:focus-visible { box-shadow: 0 0 0 2px var(--accent); }
+.stage canvas { display: block; width: 100%; height: 100%; }
+.stage.dragging { cursor: grabbing; }
+
+.hud { position: absolute; display: flex; gap: 6px; flex-wrap: wrap; pointer-events: none; }
+.hud-top { top: 12px; left: 12px; right: 12px; }
+.chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgba(10, 14, 17, 0.72);
+  border: 1px solid var(--line);
+  font-size: 12px;
+}
+.chip-dim { color: var(--accent); }
+.swatch { width: 10px; height: 10px; border-radius: 3px; display: inline-block; box-shadow: inset 0 0 0 1px rgba(0,0,0,.35); }
+
+.banner {
+  position: absolute; left: 50%; bottom: 20px; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap; justify-content: center;
+  padding: 12px 16px;
+  background: rgba(12, 17, 21, 0.92);
+  border: 1px solid var(--accent);
+  border-radius: 12px;
+  max-width: calc(100% - 24px);
+}
+.banner strong { color: var(--accent); font-size: 16px; }
+.banner span { font-family: var(--f-mono); }
+
+.toast {
+  position: absolute; left: 50%; top: 52px; transform: translateX(-50%);
+  padding: 8px 14px;
+  background: rgba(12, 17, 21, 0.92);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  font-size: 13px;
+  max-width: calc(100% - 24px);
+  text-align: center;
+  pointer-events: none;
+}
+
+/* 이동 버튼 */
+.pad { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 6px; }
+.pad button {
+  font-family: var(--f-mono); font-weight: 700; font-size: 14px;
+  padding: 8px 0;
+  background: var(--mat-2); color: var(--ink);
+  border: 1px solid var(--line); border-radius: 8px;
+  cursor: pointer;
+}
+.pad button:hover { border-color: var(--ink-dim); }
+.pad button:active { background: var(--mat-3); }
+
+/* ---------- 패널 ---------- */
+.panel { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.block {
+  background: var(--mat-2);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 14px;
+  display: flex; flex-direction: column; gap: 10px;
+  min-width: 0;
+}
+.block-title {
+  margin: 0;
+  font-size: 12px; font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--ink-dim);
+}
+summary.block-title { cursor: pointer; list-style-position: inside; }
+details.keys { display: flex; flex-direction: column; gap: 8px; }
+details.keys[open] summary { margin-bottom: 8px; }
+
+.seg { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.seg-2 { grid-template-columns: 1fr 1fr; }
+.seg-btn {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 0;
+  padding: 8px 10px;
+  background: var(--mat);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  font: inherit; font-weight: 700; font-size: 15px;
+  cursor: pointer;
+  text-align: left;
+}
+.seg-btn small { font-weight: 400; font-size: 11.5px; color: var(--ink-dim); }
+.seg-btn:hover { border-color: var(--ink-dim); }
+.seg-btn[aria-checked="true"] { border-color: var(--accent); background: #262212; }
+.seg-btn[aria-checked="true"] small { color: var(--accent); }
+
+.row-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.btn {
+  font: inherit; font-weight: 500;
+  padding: 8px 14px;
+  border-radius: 9px;
+  border: 1px solid var(--line);
+  background: var(--mat-3);
+  color: var(--ink);
+  cursor: pointer;
+}
+.btn:hover { border-color: var(--ink-dim); }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.btn-accent { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 700; }
+.btn-accent:hover { filter: brightness(1.06); border-color: var(--accent); }
+.btn-small { padding: 5px 10px; font-size: 12.5px; }
+button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.note { margin: 0; color: var(--ink-dim); font-size: 12.5px; }
+.keytable { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.keytable td { padding: 5px 4px; border-top: 1px solid var(--line); vertical-align: top; }
+.keytable td:first-child { white-space: nowrap; padding-right: 10px; }
+.mono { font-family: var(--f-mono); font-weight: 700; }
+kbd {
+  display: inline-block;
+  min-width: 20px;
+  padding: 0 5px;
+  font-family: var(--f-mono); font-size: 11.5px; font-weight: 700;
+  text-align: center;
+  color: var(--ink);
+  background: var(--mat);
+  border: 1px solid var(--line);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+}
+
+/* ---------- 스터디 ---------- */
+.stages { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.stages li {
+  display: grid; grid-template-columns: 22px 1fr; gap: 8px; align-items: center;
+  padding: 4px 6px; border-radius: 7px;
+  color: var(--ink-dim); font-size: 13px;
+}
+.stages li .dot {
+  width: 20px; height: 20px; border-radius: 50%;
+  display: grid; place-items: center;
+  font-family: var(--f-mono); font-size: 11px; font-weight: 700;
+  border: 1px solid var(--line);
+}
+.stages li.done { color: var(--ink); }
+.stages li.done .dot { background: var(--ok); border-color: var(--ok); color: #06210f; }
+.stages li.current { background: #262212; color: var(--ink); font-weight: 700; }
+.stages li.current .dot { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+
+.goal { margin: 0; font-size: 13px; color: var(--ink-dim); }
+.hold {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap;
+  padding: 8px 10px; border-radius: 9px;
+  background: var(--mat); border: 1px dashed var(--line);
+  font-size: 13px;
+}
+.hold.mismatch { border-color: var(--warn); border-style: solid; }
+.hold.mismatch b { color: var(--warn); }
+
+.seg-card { display: flex; flex-direction: column; gap: 6px; padding: 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--mat); }
+.seg-card.active { border-color: var(--accent); }
+.seg-card.past { opacity: 0.55; }
+.seg-card h3 { margin: 0; font-size: 14.5px; }
+.seg-card p { margin: 0; font-size: 12.5px; color: var(--ink-dim); }
+.seg-card .focus { color: var(--ink); }
+.moves { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.mv {
+  font-family: var(--f-mono); font-weight: 700; font-size: 15px;
+  min-width: 34px; padding: 3px 7px; text-align: center;
+  border-radius: 6px; border: 1px solid var(--line);
+  background: var(--mat-2);
+}
+.mv.done { color: var(--ink-dim); background: transparent; text-decoration: line-through; text-decoration-color: rgba(147,163,176,.5); }
+.mv.now { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.mv.half { background: #5a4914; color: var(--ink); border-color: var(--accent); }
+.mv-sep { width: 1px; height: 18px; background: var(--line); margin: 0 3px; }
+
+.next {
+  display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; align-items: center;
+  padding: 12px; border-radius: 10px;
+  background: #262212; border: 1px solid var(--accent);
+}
+.next.undo { background: #2c1a0e; border-color: var(--warn); }
+.next .big { grid-row: span 2; font-family: var(--f-mono); font-size: 34px; font-weight: 700; line-height: 1; color: var(--accent); min-width: 64px; text-align: center; }
+.next.undo .big { color: var(--warn); }
+.next .what { font-weight: 700; }
+.next .how { font-size: 13px; color: var(--ink-dim); }
+.study-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+
+@media (max-width: 960px) {
+  .layout { grid-template-columns: minmax(0, 1fr); }
+  .stage-wrap { position: static; }
+  .stage { height: 58vh; min-height: 300px; }
+}
+@media (max-width: 520px) {
+  .pad { gap: 4px; }
+  .pad button { font-size: 13px; padding: 9px 0; }
+  .seg { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .stat { min-width: 0; padding: 5px 10px; }
+  .stat-value { font-size: 15px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { scroll-behavior: auto !important; }
+}
+
+</style>
+<div class="app">
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+      <div>
+        <h1>큐브 스터디 랩</h1>
+        <p class="tagline">돌려 보고, 공식이 왜 필요한지 배우는 큐브 연습장</p>
+      </div>
+    </div>
+    <div class="stats" aria-live="polite">
+      <div class="stat"><span class="stat-label">시간</span><span class="stat-value" id="timer">00:00.00</span></div>
+      <div class="stat"><span class="stat-label">이동</span><span class="stat-value" id="moveCount">0</span></div>
+      <div class="stat"><span class="stat-label">최고 기록</span><span class="stat-value" id="best">—</span></div>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="stage-wrap">
+      <div class="stage" id="stage" tabindex="0" aria-label="큐브 화면. 드래그로 돌리고 키보드로 조작합니다.">
+        <div class="hud hud-top">
+          <span class="chip" id="hudFront">정면 F</span>
+          <span class="chip chip-dim" id="hudDepth" hidden>층 선택</span>
+        </div>
+        <div class="banner" id="banner" hidden>
+          <strong id="bannerTitle">완성!</strong>
+          <span id="bannerText"></span>
+          <button class="btn btn-accent" id="bannerBtn" type="button">다시 섞기</button>
+        </div>
+        <div class="toast" id="toast" hidden></div>
+      </div>
+      <div class="pad" id="pad" aria-label="이동 버튼 (보는 방향 기준)"></div>
+    </section>
+
+    <aside class="panel">
+      <section class="block">
+        <h2 class="block-title">퍼즐</h2>
+        <div class="seg" id="puzzles" role="radiogroup" aria-label="퍼즐 크기"></div>
+      </section>
+
+      <section class="block">
+        <h2 class="block-title">모드</h2>
+        <div class="seg seg-2" role="radiogroup" aria-label="모드">
+          <button type="button" class="seg-btn" data-mode="free" id="modeFree" role="radio">혼자 풀기<small>타이머 · 기록</small></button>
+          <button type="button" class="seg-btn" data-mode="study" id="modeStudy" role="radio">스터디<small>상황별 공식 안내</small></button>
+        </div>
+        <div class="row-actions">
+          <button type="button" class="btn btn-accent" id="btnScramble">섞기</button>
+          <button type="button" class="btn" id="btnUndo">되돌리기</button>
+          <button type="button" class="btn" id="btnReset">초기화</button>
+        </div>
+      </section>
+
+      <section class="block study" id="study" hidden>
+        <div id="studyBody"></div>
+      </section>
+
+      <section class="block">
+        <details class="keys" id="keysBox" open>
+          <summary class="block-title">조작법</summary>
+          <p class="note">모든 키는 <b>지금 보이는 방향</b> 기준입니다. 정면에 보이는 면이 F입니다.</p>
+          <table class="keytable">
+            <tbody>
+              <tr><td><kbd>W</kbd> + <kbd>←</kbd> / <kbd>→</kbd></td><td>윗층 왼쪽(U) / 오른쪽(U')</td></tr>
+              <tr><td><kbd>S</kbd> + <kbd>→</kbd> / <kbd>←</kbd></td><td>아래층 오른쪽(D) / 왼쪽(D')</td></tr>
+              <tr><td><kbd>D</kbd> + <kbd>↑</kbd> / <kbd>↓</kbd></td><td>오른쪽 줄 위로(R) / 아래로(R')</td></tr>
+              <tr><td><kbd>A</kbd> + <kbd>↓</kbd> / <kbd>↑</kbd></td><td>왼쪽 줄 아래로(L) / 위로(L')</td></tr>
+              <tr><td><kbd>E</kbd> / <kbd>Q</kbd></td><td>앞면 시계(F) / 반시계(F')</td></tr>
+              <tr><td><kbd>Z</kbd> / <kbd>C</kbd></td><td>뒷면 B / B'</td></tr>
+              <tr><td><kbd>←</kbd> <kbd>→</kbd> <kbd>↑</kbd> <kbd>↓</kbd> 만</td><td>보는 방향 바꾸기 (큐브는 그대로)</td></tr>
+              <tr><td><kbd>Shift</kbd> + 방향키</td><td>큐브 전체 돌리기 (x, y)</td></tr>
+              <tr><td><kbd>Shift</kbd> + <kbd>E</kbd>/<kbd>Q</kbd></td><td>큐브 전체 기울이기 (z / z')</td></tr>
+              <tr><td>숫자 <kbd>2</kbd>~<kbd>4</kbd> 후 이동키</td><td>안쪽 층만 돌리기 (4×4 이상, 3×3 가운데층)</td></tr>
+              <tr><td><kbd>Shift</kbd> + <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 조합</td><td>바깥 2층 함께 (Rw, Uw…)</td></tr>
+              <tr><td><kbd>Space</kbd> / <kbd>Enter</kbd></td><td>스터디: 다음 한 수 / 현재 공식 끝까지 자동</td></tr>
+              <tr><td><kbd>Backspace</kbd></td><td>되돌리기</td></tr>
+            </tbody>
+          </table>
+          <p class="note">마우스: 스티커를 끌면 그 줄이 돌아가고, 빈 곳을 끌면 시점이 바뀝니다. 터치도 같습니다.</p>
+        </details>
+      </section>
+
+      <section class="block">
+        <details class="keys">
+          <summary class="block-title">표기법 읽는 법</summary>
+          <table class="keytable">
+            <tbody>
+              <tr><td class="mono">R</td><td>오른쪽 면을 그 면을 바라봤을 때 시계 방향으로 90°</td></tr>
+              <tr><td class="mono">R'</td><td>반시계 방향 90° (프라임)</td></tr>
+              <tr><td class="mono">R2</td><td>180° (두 번)</td></tr>
+              <tr><td class="mono">U D F B L</td><td>위 · 아래 · 앞 · 뒤 · 왼쪽 면</td></tr>
+              <tr><td class="mono">x y z</td><td>큐브 전체 회전 (x는 R 방향, y는 U 방향, z는 F 방향)</td></tr>
+              <tr><td class="mono">M E S</td><td>3×3 가운데층 (M은 L 방향)</td></tr>
+              <tr><td class="mono">Rw / 2R</td><td>바깥 2층 함께 / 안쪽 2번째 층만</td></tr>
+            </tbody>
+          </table>
+        </details>
+      </section>
+    </aside>
+  </main>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+/*
+ * cube.js — NxN 큐브 논리 모델 (렌더링과 무관)
+ *
+ * 좌표계: x = 오른쪽(R), y = 위(U), z = 앞(F)
+ * 각 조각 위치는 "두 배 정수 좌표"로 표현합니다. N=3 이면 -2, 0, 2 / N=4 이면 -3,-1,1,3.
+ * 스티커 슬롯(slot) = (조각 위치 p, 바깥 방향 법선 n). 상태(state)는 슬롯별 색 번호 배열입니다.
+ *
+ * 이동(move) 객체: { f: 'U'|'D'|'R'|'L'|'F'|'B', lo: 시작 깊이(1=바깥층), hi: 끝 깊이, t: 1|-1|2 }
+ *   t=1  → 그 면을 바라봤을 때 시계 방향 90°
+ *   t=-1 → 반시계 90°,  t=2 → 180°
+ */
+(function (root) {
+  'use strict';
+
+  const FACE = {
+    U: { axis: 1, sign: 1, cw: -1, n: [0, 1, 0] },
+    D: { axis: 1, sign: -1, cw: 1, n: [0, -1, 0] },
+    R: { axis: 0, sign: 1, cw: -1, n: [1, 0, 0] },
+    L: { axis: 0, sign: -1, cw: 1, n: [-1, 0, 0] },
+    F: { axis: 2, sign: 1, cw: -1, n: [0, 0, 1] },
+    B: { axis: 2, sign: -1, cw: 1, n: [0, 0, -1] },
+  };
+  const FACES = ['U', 'D', 'R', 'L', 'F', 'B'];
+
+  // 색 번호: 0 흰, 1 노랑, 2 초록, 3 파랑, 4 빨강, 5 주황, 6 없음(내부용)
+  const COLOR_NAMES = ['흰색', '노란색', '초록', '파랑', '빨강', '주황', '-'];
+  // 완성 상태: 흰색 아래, 노랑 위, 초록 앞, 주황 오른쪽 (흰-위/초록-앞/빨강-오른쪽 표준 배색을 뒤집어 든 모습)
+  const SOLVED_COLOR = { U: 1, D: 0, F: 2, B: 3, R: 5, L: 4 };
+
+  const SIDES = ['F', 'R', 'B', 'L']; // 위에서 봤을 때 순서 (y 회전 기준)
+
+  function rot(v, axis, q) {
+    q = ((q % 4) + 4) % 4;
+    let x = v[0], y = v[1], z = v[2];
+    for (let i = 0; i < q; i++) {
+      let a, b;
+      if (axis === 0) { a = -z; b = y; y = a; z = b; }
+      else if (axis === 1) { a = z; b = -x; x = a; z = b; }
+      else { a = -y; b = x; x = a; y = b; }
+    }
+    return [x, y, z];
+  }
+
+  class Cube {
+    constructor(N) {
+      this.N = N;
+      const M = N - 1;
+      this.coords = [];
+      for (let i = 0; i < N; i++) this.coords.push(2 * i - M);
+      this.slots = [];
+      this.slotIndex = new Map();
+      this.slotsByFace = {};
+      for (const f of FACES) {
+        const info = FACE[f];
+        const others = [0, 1, 2].filter((a) => a !== info.axis);
+        this.slotsByFace[f] = [];
+        for (const a of this.coords) {
+          for (const b of this.coords) {
+            const p = [0, 0, 0];
+            p[info.axis] = info.sign * M;
+            p[others[0]] = a;
+            p[others[1]] = b;
+            const idx = this.slots.length;
+            this.slots.push({ p, n: info.n.slice(), face: f });
+            this.slotIndex.set(Cube.key(p, info.n), idx);
+            this.slotsByFace[f].push(idx);
+          }
+        }
+      }
+      this.permCache = new Map();
+      this.state = this.solvedState();
+    }
+
+    static key(p, n) { return p[0] + ',' + p[1] + ',' + p[2] + '|' + n[0] + ',' + n[1] + ',' + n[2]; }
+
+    idx(p, n) { return this.slotIndex.get(Cube.key(p, n)); }
+
+    solvedState() {
+      const s = new Uint8Array(this.slots.length);
+      this.slots.forEach((sl, i) => { s[i] = SOLVED_COLOR[sl.face]; });
+      return s;
+    }
+
+    /** 이동 → (축, 층 좌표 집합, 양의 축 기준 90° 회전 횟수) */
+    geometry(m) {
+      const info = FACE[m.f];
+      const M = this.N - 1;
+      const layers = [];
+      for (let d = m.lo; d <= m.hi; d++) layers.push(info.sign * (M - 2 * (d - 1)));
+      const q = ((m.t * info.cw) % 4 + 4) % 4;
+      return { axis: info.axis, layers, q };
+    }
+
+    perm(m) {
+      const k = m.f + m.lo + ',' + m.hi + ',' + m.t;
+      let p = this.permCache.get(k);
+      if (p) return p;
+      const g = this.geometry(m);
+      p = new Int32Array(this.slots.length);
+      this.slots.forEach((sl, i) => {
+        if (g.layers.includes(sl.p[g.axis])) {
+          p[i] = this.idx(rot(sl.p, g.axis, g.q), rot(sl.n, g.axis, g.q));
+        } else p[i] = i;
+      });
+      this.permCache.set(k, p);
+      return p;
+    }
+
+    /** 상태에 이동 적용한 새 상태 반환 (원본 불변) */
+    applyTo(state, m) {
+      const p = this.perm(m);
+      const out = new Uint8Array(state.length);
+      for (let i = 0; i < state.length; i++) out[p[i]] = state[i];
+      return out;
+    }
+
+    applyAll(state, moves) {
+      let s = state;
+      for (const m of moves) s = this.applyTo(s, m);
+      return s;
+    }
+
+    apply(m) { this.state = this.applyTo(this.state, m); }
+
+    /** 이동이 영향을 주는 슬롯 목록 */
+    affectedSlots(m) {
+      const g = this.geometry(m);
+      const out = [];
+      this.slots.forEach((sl, i) => { if (g.layers.includes(sl.p[g.axis])) out.push(i); });
+      return out;
+    }
+
+    /** 모든 면이 한 가지 색이면 완성 (큐브 전체 방향은 상관 없음) */
+    isSolved(state = this.state) {
+      for (const f of FACES) {
+        const arr = this.slotsByFace[f];
+        const c = state[arr[0]];
+        for (let i = 1; i < arr.length; i++) if (state[arr[i]] !== c) return false;
+      }
+      return true;
+    }
+
+    static stateKey(state) { return String.fromCharCode.apply(null, state); }
+
+    /** 무작위 섞기 */
+    scramble(len, rnd = Math.random) {
+      const N = this.N;
+      const moves = [];
+      let lastAxis = -1;
+      const maxWide = Math.floor(N / 2);
+      while (moves.length < len) {
+        const f = FACES[Math.floor(rnd() * 6)];
+        const ax = FACE[f].axis;
+        if (ax === lastAxis) continue;
+        lastAxis = ax;
+        const t = [1, -1, 2][Math.floor(rnd() * 3)];
+        let hi = 1;
+        if (N >= 4) hi = 1 + Math.floor(rnd() * maxWide);
+        moves.push({ f, lo: 1, hi, t });
+      }
+      return moves;
+    }
+  }
+
+  // ---------------- 표기법 ----------------
+  const TOKEN_RE = /^(\d*)([URFDLBurfdlbxyzMES])(w?)(2'|2|'|)$/;
+
+  function parseMove(tok, N) {
+    const m = TOKEN_RE.exec(tok.trim());
+    if (!m) throw new Error('알 수 없는 표기: ' + tok);
+    const num = m[1] ? parseInt(m[1], 10) : 0;
+    let letter = m[2];
+    const wide = m[3] === 'w';
+    const suf = m[4];
+    const t = suf === "'" ? -1 : (suf === '2' || suf === "2'") ? 2 : 1;
+    const mid = (N + 1) / 2;
+    switch (letter) {
+      case 'x': return { f: 'R', lo: 1, hi: N, t };
+      case 'y': return { f: 'U', lo: 1, hi: N, t };
+      case 'z': return { f: 'F', lo: 1, hi: N, t };
+      case 'M': return { f: 'L', lo: mid, hi: mid, t };
+      case 'E': return { f: 'D', lo: mid, hi: mid, t };
+      case 'S': return { f: 'F', lo: mid, hi: mid, t };
+    }
+    if (letter === letter.toLowerCase()) { // r, u ... = 바깥 두 층
+      return { f: letter.toUpperCase(), lo: 1, hi: 2, t };
+    }
+    if (wide) return { f: letter, lo: 1, hi: num || 2, t };
+    if (num > 1) return { f: letter, lo: num, hi: num, t };
+    return { f: letter, lo: 1, hi: 1, t };
+  }
+
+  function parseAlg(str, N) {
+    return str.split(/\s+/).filter(Boolean).map((t) => parseMove(t, N));
+  }
+
+  const ROT_NAME = { R: ['x', 1], L: ['x', -1], U: ['y', 1], D: ['y', -1], F: ['z', 1], B: ['z', -1] };
+  const SLICE_NAME = { L: ['M', 1], R: ['M', -1], D: ['E', 1], U: ['E', -1], F: ['S', 1], B: ['S', -1] };
+
+  function suffix(t) { return t === 2 ? '2' : t === -1 ? "'" : ''; }
+
+  function formatMove(m, N) {
+    if (m.lo === 1 && m.hi === N) {
+      const [n, s] = ROT_NAME[m.f];
+      const t = m.t === 2 ? 2 : m.t * s;
+      return n + suffix(t);
+    }
+    if (N % 2 === 1 && N >= 3 && m.lo === m.hi && m.lo === (N + 1) / 2 && N === 3) {
+      const [n, s] = SLICE_NAME[m.f];
+      const t = m.t === 2 ? 2 : m.t * s;
+      return n + suffix(t);
+    }
+    if (m.lo === 1 && m.hi === 1) return m.f + suffix(m.t);
+    if (m.lo === 1) return (m.hi > 2 ? m.hi : '') + m.f + 'w' + suffix(m.t);
+    if (m.lo === m.hi) return m.lo + m.f + suffix(m.t);
+    return m.lo + '-' + m.hi + m.f + suffix(m.t);
+  }
+
+  function invert(m) { return { f: m.f, lo: m.lo, hi: m.hi, t: m.t === 2 ? 2 : -m.t }; }
+
+  /** 상대 표기(front 면을 정면으로 들었을 때) → 절대 면 */
+  function relToAbs(m, front) {
+    const fi = SIDES.indexOf(front);
+    const si = SIDES.indexOf(m.f);
+    if (si < 0) return Object.assign({}, m);
+    return Object.assign({}, m, { f: SIDES[(si + fi) % 4] });
+  }
+  function absToRel(m, front) {
+    const fi = SIDES.indexOf(front);
+    const si = SIDES.indexOf(m.f);
+    if (si < 0) return Object.assign({}, m);
+    return Object.assign({}, m, { f: SIDES[(si - fi + 4) % 4] });
+  }
+
+  function sameMove(a, b) { return a.f === b.f && a.lo === b.lo && a.hi === b.hi && a.t === b.t; }
+
+  const CubeLib = {
+    Cube, FACE, FACES, SIDES, COLOR_NAMES, SOLVED_COLOR,
+    parseMove, parseAlg, formatMove, invert, relToAbs, absToRel, sameMove, rot,
+  };
+  if (typeof module !== 'undefined' && module.exports) module.exports = CubeLib;
+  else root.CubeLib = CubeLib;
+})(typeof window !== 'undefined' ? window : globalThis);
+
+</script>
+<script>
+/*
+ * tutor.js — 스터디 모드 엔진 (2×2, 3×3 초보자 층별 공식법)
+ *
+ * 방식: 각 단계마다 "공식 후보"(윗면 맞추기 U + 잡는 방향 + 공식)를 실제로 시뮬레이션해 보고,
+ *       이미 맞춘 조각을 깨지 않으면서 진행도가 가장 많이 오르는 것을 고릅니다.
+ *       따라서 화면에 제시되는 공식은 현재 상태에서 실제로 효과가 있음이 계산으로 확인된 것입니다.
+ *
+ * 3×3 단계 (흰색 아래, 노란색 위):
+ *   0 방향 잡기 → 1 흰색 십자 → 2 흰색 코너 → 3 2층 엣지 → 4 노란 십자
+ *   → 5 노란 엣지 위치 → 6 노란 코너 위치 → 7 노란 코너 방향(완성)
+ * 2×2: 1 흰색 면 → 2 노란 코너 위치 → 3 노란 코너 방향(완성)
+ */
+(function (root) {
+  'use strict';
+  const Lib = root.CubeLib || require('./cube.js');
+  const { Cube, SIDES, COLOR_NAMES, SOLVED_COLOR, parseAlg, relToAbs } = Lib;
+
+  const C3 = new Cube(3);
+  const NV = { U: [0, 1, 0], D: [0, -1, 0], R: [1, 0, 0], L: [-1, 0, 0], F: [0, 0, 1], B: [0, 0, -1] };
+  const FACES = ['U', 'D', 'R', 'L', 'F', 'B'];
+
+  function vsum(faces) {
+    const p = [0, 0, 0];
+    for (const f of faces) for (let i = 0; i < 3; i++) p[i] += NV[f][i];
+    return p;
+  }
+  function slot3(p, f) { return C3.idx(p.map((v) => v * 2), NV[f]); }
+  const CENTER = {};
+  for (const f of FACES) CENTER[f] = slot3(NV[f], f);
+
+  function mkPiece(name) {
+    const faces = name.split('');
+    const p = vsum(faces);
+    return { name, faces, slots: faces.map((f) => slot3(p, f)) };
+  }
+  const P = {};
+  ['UF', 'UR', 'UB', 'UL', 'DF', 'DR', 'DB', 'DL', 'FR', 'FL', 'BR', 'BL',
+    'UFR', 'URB', 'UBL', 'ULF', 'DFR', 'DRB', 'DBL', 'DLF'].forEach((n) => { P[n] = mkPiece(n); });
+  const EDGES = ['UF', 'UR', 'UB', 'UL', 'DF', 'DR', 'DB', 'DL', 'FR', 'FL', 'BR', 'BL'].map((n) => P[n]);
+  const CORNERS = ['UFR', 'URB', 'UBL', 'ULF', 'DFR', 'DRB', 'DBL', 'DLF'].map((n) => P[n]);
+  const D_EDGES = ['DF', 'DR', 'DB', 'DL'].map((n) => P[n]);
+  const D_CORNERS = ['DFR', 'DRB', 'DBL', 'DLF'].map((n) => P[n]);
+  const MID_EDGES = ['FR', 'FL', 'BR', 'BL'].map((n) => P[n]);
+  const U_EDGES = ['UF', 'UR', 'UB', 'UL'].map((n) => P[n]);
+  const U_CORNERS = ['UFR', 'URB', 'UBL', 'ULF'].map((n) => P[n]);
+
+  function findCornerByFaces(fs) {
+    const k = fs.slice().sort().join('');
+    return CORNERS.find((c) => c.faces.slice().sort().join('') === k);
+  }
+
+  // ---------- 상태 질의 ----------
+  function centers(S) { const cc = {}; for (const f of FACES) cc[f] = S[CENTER[f]]; return cc; }
+  function solvedPiece(S, cc, pc) { for (let i = 0; i < pc.faces.length; i++) if (S[pc.slots[i]] !== cc[pc.faces[i]]) return false; return true; }
+  function colorKey(arr) { return arr.slice().sort().join(','); }
+  function homeKey(cc, pc) { return colorKey(pc.faces.map((f) => cc[f])); }
+  function pieceKeyAt(S, pc) { return colorKey(pc.slots.map((s) => S[s])); }
+  /** 목표 조각(pc의 자리에 와야 할 조각)이 현재 어디 있는지 */
+  function locate(S, cc, pc) {
+    const k = homeKey(cc, pc);
+    const list = pc.faces.length === 2 ? EDGES : CORNERS;
+    return list.find((q) => pieceKeyAt(S, q) === k);
+  }
+  function inPlace(S, cc, pc) { return pieceKeyAt(S, pc) === homeKey(cc, pc); }
+  function conds(pieces) { const out = []; for (const pc of pieces) pc.slots.forEach((s, i) => out.push([s, pc.faces[i]])); return out; }
+  function keepOK(S, cc, cs) { for (const [s, f] of cs) if (S[s] !== cc[f]) return false; return true; }
+  function count(arr, fn) { let n = 0; for (const x of arr) if (fn(x)) n++; return n; }
+
+  function colorName(c) { return COLOR_NAMES[c]; }
+  function pieceLabel(cc, pc) {
+    return pc.faces.map((f) => colorName(cc[f])).join('-') + (pc.faces.length === 2 ? ' 엣지' : ' 코너');
+  }
+
+  const algCache = new Map();
+  function absMoves(alg, front) {
+    const k = alg + '@' + front;
+    let r = algCache.get(k);
+    if (!r) { r = parseAlg(alg, 3).map((m) => relToAbs(m, front)); algCache.set(k, r); }
+    return r;
+  }
+  function run(S, alg, front) { return alg ? C3.applyAll(S, absMoves(alg, front)) : S; }
+  function repeat(alg, k) { return Array(k).fill(alg).join(' '); }
+  function tokens(alg) { return alg.split(/\s+/).filter(Boolean); }
+
+  const AUF = ['', 'U', "U'", 'U2'];
+
+  // ---------- 단계 정의 ----------
+  const SEXY = "R U R' U'";
+  const STAGES = {
+    orient: {
+      name: '큐브 방향 잡기',
+      goal: '흰색 센터가 아래(D), 노란색 센터가 위(U)로 오게 큐브 전체를 돌립니다.',
+    },
+    cross: {
+      name: '흰색 십자',
+      goal: '아랫면에 흰색 십자를 만들되, 각 엣지의 옆 색이 옆면 센터 색과 같아야 합니다.',
+      targets: D_EDGES,
+      done: (S, cc) => D_EDGES.every((p) => solvedPiece(S, cc, p)),
+      keep: (S, cc) => conds(D_EDGES.filter((p) => solvedPiece(S, cc, p))),
+      score(S, cc) {
+        let solved = 0, sec = 0;
+        for (const t of D_EDGES) {
+          if (solvedPiece(S, cc, t)) { solved++; continue; }
+          const at = locate(S, cc, t);
+          const ui = at.faces.indexOf('U');
+          if (ui >= 0) sec += S[at.slots[ui]] === cc.D ? 3 : 2;
+          else if (at.faces.indexOf('D') < 0) sec += 1;
+        }
+        return solved * 100 + sec;
+      },
+      adj: true,
+      cands: [
+        { alg: 'F2', title: '흰색이 위를 보는 엣지 내리기', desc: '엣지를 같은 색 센터 바로 위(앞-위)에 두고 앞면을 180° 돌려 내립니다.' },
+        { alg: "U' R' F R", title: '흰색이 옆을 보는 엣지 넣기', desc: '흰색 스티커가 앞을 보는 엣지를 같은 색 센터 위에 두고, 오른쪽 면을 잠깐 비켜 놓았다가 앞면으로 넣습니다. 마지막 R은 비켜 둔 오른쪽 면을 되돌립니다.' },
+        { alg: 'F', title: '가운데층 엣지 바로 넣기', desc: '가운데층에 있는 엣지를 앞면 한 번 돌리기로 아래 자리에 끼웁니다.' },
+        { alg: "F'", title: '가운데층 엣지 바로 넣기', desc: '가운데층에 있는 엣지를 앞면 반대 방향 한 번으로 아래 자리에 끼웁니다.' },
+        { alg: "R U R'", title: '가운데층 엣지 꺼내기', desc: '맞춘 십자를 지키면서 오른쪽-앞 엣지를 윗면으로 올립니다. 위로 올라온 엣지는 다음 단계에서 넣습니다.' },
+        { alg: "L' U' L", title: '가운데층 엣지 꺼내기', desc: '맞춘 십자를 지키면서 왼쪽-앞 엣지를 윗면으로 올립니다.' },
+      ],
+    },
+    corners: {
+      name: '흰색 코너 (1층 완성)',
+      goal: '흰색 코너 4개를 아래 모서리에 넣어 1층을 완성합니다.',
+      targets: D_CORNERS,
+      done: (S, cc) => D_CORNERS.every((p) => solvedPiece(S, cc, p)),
+      keep: (S, cc) => conds(D_EDGES.concat(D_CORNERS.filter((p) => solvedPiece(S, cc, p)))),
+      keep2x2: (S, cc) => conds(D_CORNERS.filter((p) => solvedPiece(S, cc, p))),
+      score(S, cc) {
+        let solved = 0, sec = 0;
+        for (const t of D_CORNERS) {
+          if (solvedPiece(S, cc, t)) { solved++; continue; }
+          const at = locate(S, cc, t);
+          if (at.faces.indexOf('U') >= 0) sec += 1;
+        }
+        return solved * 100 + sec;
+      },
+      adj: true,
+      cands: [1, 2, 3, 4, 5].map((k) => ({
+        alg: repeat(SEXY, k), rep: k, unit: SEXY,
+        title: k === 1 ? '코너 꺼내기 / 넣기 (R U R\' U\' 1번)' : `R U R' U' ${k}번 반복`,
+        desc: '흰색 코너를 넣을 자리(앞-오른쪽-아래) 바로 위에 두고, 코너가 흰색이 아래를 보며 들어갈 때까지 R U R\' U\'를 반복합니다 (최대 5번). 아래 자리에 잘못 들어간 코너도 1번 돌려 윗면으로 꺼낼 수 있습니다.',
+      })),
+    },
+    middle: {
+      name: '2층 엣지',
+      goal: '노란색이 없는 엣지 4개를 가운데층 자리에 넣습니다.',
+      targets: MID_EDGES,
+      done: (S, cc) => MID_EDGES.every((p) => solvedPiece(S, cc, p)),
+      keep: (S, cc) => conds(D_EDGES.concat(D_CORNERS, MID_EDGES.filter((p) => solvedPiece(S, cc, p)))),
+      score(S, cc) {
+        let solved = 0, sec = 0;
+        for (const t of MID_EDGES) {
+          if (solvedPiece(S, cc, t)) { solved++; continue; }
+          const at = locate(S, cc, t);
+          if (at.faces.indexOf('U') >= 0) sec += 1;
+        }
+        return solved * 100 + sec;
+      },
+      adj: true,
+      cands: [
+        { alg: "U R U' R' U' F' U F", title: '오른쪽으로 넣기', desc: '엣지의 앞쪽 색을 앞면 센터와 맞춰 세로줄(T자)을 만든 뒤, 윗면 색이 오른쪽 센터와 같으면 오른쪽 자리로 넣습니다. 가운데층에 잘못 끼인 엣지를 꺼낼 때도 같은 공식을 씁니다.' },
+        { alg: "U' L' U L U F U' F'", title: '왼쪽으로 넣기', desc: '엣지의 앞쪽 색을 앞면 센터와 맞춰 세로줄(T자)을 만든 뒤, 윗면 색이 왼쪽 센터와 같으면 왼쪽 자리로 넣습니다.' },
+      ],
+    },
+    ycross: {
+      name: '노란색 십자',
+      goal: '윗면에 노란색 십자를 만듭니다 (엣지 위치는 아직 상관없음).',
+      done: (S, cc) => U_EDGES.every((p) => S[p.slots[0]] === cc.U),
+      keep: (S, cc) => conds(D_EDGES.concat(D_CORNERS, MID_EDGES)),
+      score(S, cc) {
+        const up = U_EDGES.map((p) => S[p.slots[0]] === cc.U);
+        const n = count(up, (x) => x);
+        if (n === 4) return 3;
+        if (n === 0) return 0;
+        return (up[0] && up[2]) || (up[1] && up[3]) ? 2 : 1; // 일자 2, ㄱ자 1
+      },
+      shape(S, cc) { return ['점', 'ㄱ자', '일자', '십자'][this.score(S, cc)]; },
+      adj: false,
+      cands: [
+        { alg: "F R U R' U' F'", title: '노란 십자 공식', desc: '점 모양이면 아무 방향에서, ㄱ자면 ㄱ이 왼쪽-뒤에 오게, 일자면 가로로 놓고 공식을 합니다.' },
+        { alg: "F U R U' R' F'", title: 'ㄱ자 → 십자 바로 가기', desc: 'ㄱ자가 왼쪽-뒤에 오게 들고 이 공식을 하면 바로 십자가 됩니다.' },
+      ],
+    },
+    yedges: {
+      name: '노란 엣지 위치',
+      goal: '노란 엣지의 옆 색을 옆면 센터와 모두 맞춥니다.',
+      done: (S, cc) => U_EDGES.every((p) => solvedPiece(S, cc, p)),
+      keep: (S, cc) => conds(D_EDGES.concat(D_CORNERS, MID_EDGES)).concat(U_EDGES.map((p) => [p.slots[0], 'U'])),
+      score(S, cc) {
+        if (U_EDGES.every((p) => solvedPiece(S, cc, p))) return 100;
+        let best = 0, bestState = null;
+        for (const a of AUF) {
+          const s = run(S, a, 'F');
+          const m = count(U_EDGES, (p) => solvedPiece(s, cc, p));
+          if (m > best) { best = m; bestState = s; }
+        }
+        if (best === 4) return 10;
+        if (best === 2) {
+          const ok = U_EDGES.map((p) => solvedPiece(bestState, cc, p));
+          return (ok[0] && ok[2]) || (ok[1] && ok[3]) ? 2 : 3; // 이웃 2개 3, 마주보는 2개 2
+        }
+        return 1;
+      },
+      adj: true,
+      cands: [
+        { alg: "R U R' U R U2 R'", title: '엣지 교환 공식 (수네)', desc: '윗면을 돌려 맞는 엣지 두 개가 이웃하면 그 둘을 뒤와 오른쪽에 두고 공식을 합니다. 마주 보는 두 개만 맞으면 한 번 하고 다시 봅니다.' },
+        { alg: '', title: '윗면 맞추기', desc: '윗면만 돌리면 엣지 옆 색이 모두 맞습니다.' },
+      ],
+    },
+    ycornerpos: {
+      name: '노란 코너 위치',
+      goal: '노란 코너를 제자리(색 조합이 맞는 모서리)로 옮깁니다. 방향은 아직 상관없습니다.',
+      done: (S, cc) => U_CORNERS.every((p) => inPlace(S, cc, p)),
+      keep: (S, cc) => conds(D_EDGES.concat(D_CORNERS, MID_EDGES, U_EDGES)),
+      score: (S, cc) => count(U_CORNERS, (p) => inPlace(S, cc, p)),
+      adj: true,
+      cands: [1, 2].map((k) => ({
+        alg: repeat("U R U' L' U R' U' L", k), rep: k, unit: "U R U' L' U R' U' L",
+        title: k === 1 ? '코너 3개 돌리기' : '코너 3개 돌리기 ×2',
+        desc: '제자리에 있는 코너(방향은 무관)를 앞-오른쪽-위에 두고 공식을 하면 나머지 세 코너가 돌아갑니다. 제자리 코너가 없으면 아무 방향에서 한 번 하면 생깁니다.',
+      })),
+    },
+    ycornerpos2: { // 2×2 전용 (엣지·센터가 없으므로 윗면 회전 여유 허용)
+      name: '노란 코너 위치',
+      goal: '윗면을 돌렸을 때 노란 코너 4개가 모두 색 조합이 맞는 자리에 오게 합니다.',
+      done(S, cc) { return AUF.some((a) => { const s = run(S, a, 'F'); return U_CORNERS.every((p) => inPlace(s, cc, p)); }); },
+      keep: (S, cc) => conds(D_CORNERS),
+      score(S, cc) {
+        // 대각선 교환은 3-사이클 한 번으로 풀 수 없으므로, 이웃 교환(한 번에 풀림)보다 낮게 평가
+        let b = 0, bs = null;
+        for (const a of AUF) {
+          const s = run(S, a, 'F');
+          const m = count(U_CORNERS, (p) => inPlace(s, cc, p));
+          if (m > b) { b = m; bs = s; }
+        }
+        if (b === 4) return 10;
+        if (b === 2) {
+          const ok = U_CORNERS.map((p) => inPlace(bs, cc, p));
+          return (ok[0] && ok[2]) || (ok[1] && ok[3]) ? 2 : 3;
+        }
+        return b;
+      },
+      adj: true,
+      cands: [1, 2].map((k) => ({
+        alg: repeat("U R U' L' U R' U' L", k), rep: k, unit: "U R U' L' U R' U' L",
+        title: k === 1 ? '코너 3개 돌리기' : '코너 3개 돌리기 ×2',
+        desc: '제자리에 있는 코너를 앞-오른쪽-위에 두고 공식을 하면 나머지 세 코너가 돌아갑니다.',
+      })),
+    },
+    ycornerori: {
+      name: '노란 코너 방향 (완성)',
+      goal: '앞-오른쪽-위 코너의 노란색이 위를 볼 때까지 R\' D\' R D 를 반복하고, 윗면(U)만 돌려 다음 코너를 가져옵니다.',
+    },
+  };
+
+  const ORDER3 = ['orient', 'cross', 'corners', 'middle', 'ycross', 'yedges', 'ycornerpos', 'ycornerori'];
+  const ORDER2 = ['corners', 'ycornerpos2', 'ycornerori'];
+
+  // ---------- 2×2 → 3×3 임베딩 ----------
+  const SIDE_COLORS = [SOLVED_COLOR.F, SOLVED_COLOR.R, SOLVED_COLOR.B, SOLVED_COLOR.L];
+  function assignment(k) {
+    const cc = { U: SOLVED_COLOR.U, D: SOLVED_COLOR.D };
+    SIDES.forEach((f, i) => { cc[f] = SIDE_COLORS[(i + k) % 4]; });
+    return cc;
+  }
+  const C2 = new Cube(2);
+  function embed2(S2, cc) {
+    const S = new Uint8Array(C3.slots.length).fill(6);
+    C3.slots.forEach((sl, i) => {
+      const isCorner = sl.p.every((v) => Math.abs(v) === 2);
+      if (isCorner) S[i] = S2[C2.idx(sl.p.map((v) => v / 2), sl.n)];
+    });
+    for (const f of FACES) S[CENTER[f]] = cc[f];
+    return S;
+  }
+  function chooseAssignment(S2, prevK) {
+    let best = -1, bestK = prevK == null ? 0 : prevK;
+    const order = [0, 1, 2, 3];
+    if (prevK != null) { order.splice(order.indexOf(prevK), 1); order.unshift(prevK); }
+    for (const k of order) {
+      const cc = assignment(k);
+      const S = embed2(S2, cc);
+      const sc = count(D_CORNERS, (p) => solvedPiece(S, cc, p)) * 10 + count(D_CORNERS, (p) => {
+        const at = locate(S, cc, p); return at.faces.includes('D');
+      });
+      if (sc > best) { best = sc; bestK = k; }
+    }
+    return bestK;
+  }
+
+  // ---------- 탐색 ----------
+  function frontOrder(pref) {
+    const i = Math.max(0, SIDES.indexOf(pref));
+    return [0, 1, 2, 3].map((k) => SIDES[(i + k) % 4]);
+  }
+
+  function greedyStep(S, cc, st, prefFront, is2) {
+    const cur = st.score(S, cc);
+    const keepFn = is2 && st.keep2x2 ? st.keep2x2 : st.keep;
+    const ks = keepFn(S, cc);
+    let best = null;
+    for (const front of frontOrder(prefFront)) {
+      for (const adj of st.adj ? AUF : ['']) {
+        const S1 = run(S, adj, front);
+        for (const c of st.cands) {
+          if (!c.alg && !adj) continue;
+          const S2 = run(S1, c.alg, front);
+          if (!keepOK(S2, cc, ks)) continue;
+          const sc = st.score(S2, cc);
+          if (sc <= cur) continue;
+          const len = tokens(adj).length + tokens(c.alg).length;
+          if (!best || sc > best.sc || (sc === best.sc && len < best.len)) {
+            best = { sc, len, front, adj, cand: c, after: S2 };
+          }
+        }
+      }
+    }
+    return best;
+  }
+
+  function describeFocus(stKey, S, after, cc, st) {
+    if (!st.targets) return '';
+    const newly = st.targets.filter((t) => !solvedPiece(S, cc, t) && solvedPiece(after, cc, t));
+    if (newly.length) {
+      const t = newly[0];
+      const at = locate(S, cc, t);
+      let where;
+      if (at.faces.includes('U')) where = '윗면';
+      else if (at.faces.includes('D')) where = '아래층(잘못된 자리/방향)';
+      else where = '가운데층';
+      return `목표 조각: ${pieceLabel(cc, t)} — 지금 ${where}에 있습니다.`;
+    }
+    const moved = st.targets.find((t) => !solvedPiece(S, cc, t) && !locate(S, cc, t).faces.includes('U') && locate(after, cc, t).faces.includes('U'));
+    if (moved) return `${pieceLabel(cc, moved)}가 바로 넣을 수 없는 곳에 있어 먼저 윗면으로 꺼냅니다.`;
+    return '';
+  }
+
+  function sideName(cc, f) { return `${colorName(cc[f])} 면`; }
+
+  function planOrient(S, cc, front) {
+    // 노란 코너 방향: R' D' R D 반복 + U 로 다음 코너
+    const fi = SIDES.indexOf(front);
+    const ufr = findCornerByFaces(['U', SIDES[fi], SIDES[(fi + 1) % 4]]);
+    const ufrU = ufr.slots[ufr.faces.indexOf('U')];
+    const oriented = (s) => U_CORNERS.every((p) => s[p.slots[p.faces.indexOf('U')]] === cc.U);
+    const segs = [];
+    let s = S;
+    const UNIT = "R' D' R D";
+    for (let guard = 0; guard < 8 && !oriented(s); guard++) {
+      if (s[ufrU] !== cc.U) {
+        const s2 = run(s, repeat(UNIT, 2), front);
+        const k = s2[ufrU] === cc.U ? 2 : 4;
+        const alg = repeat(UNIT, k);
+        segs.push({
+          title: `R' D' R D ${k}번 반복`, unit: UNIT, rep: k,
+          desc: `앞-오른쪽-위 코너의 노란색이 위를 볼 때까지 반복합니다 (이 코너는 ${k}번). 아래 두 층이 흐트러져 보여도 정상입니다. 큐브를 돌려 잡지 말고 계속하세요.`,
+          moves: tokens(alg),
+        });
+        s = run(s, alg, front);
+        if (oriented(s)) break;
+      }
+      let j = 1;
+      for (; j < 4; j++) { const t = run(s, AUF[[0, 1, 3, 2][j]], front); if (t[ufrU] !== cc.U) break; }
+      const a = AUF[[0, 1, 3, 2][j]];
+      segs.push({ title: '윗면만 돌려 다음 코너 가져오기', desc: '큐브 전체가 아니라 윗면(U)만 돌려, 아직 노란색이 위를 보지 않는 코너를 앞-오른쪽-위로 가져옵니다.', moves: tokens(a) });
+      s = run(s, a, front);
+    }
+    const isSolved = (t) => CORNERS.every((p) => solvedPiece(t, cc, p)) && EDGES.every((p) => p.slots.some((x) => t[x] === 6) || solvedPiece(t, cc, p));
+    for (const a of AUF) {
+      if (isSolved(run(s, a, front))) {
+        if (a) segs.push({ title: '마무리: 윗면 맞추기', desc: '윗면만 돌리면 완성입니다.', moves: tokens(a) });
+        return segs;
+      }
+    }
+    return null;
+  }
+
+  function stageDone(key, S, cc) {
+    if (key === 'orient') return cc.D === SOLVED_COLOR.D;
+    if (key === 'ycornerori') {
+      return CORNERS.every((p) => solvedPiece(S, cc, p)) && EDGES.every((p) => p.slots.some((x) => S[x] === 6) || solvedPiece(S, cc, p));
+    }
+    return STAGES[key].done(S, cc);
+  }
+
+  /**
+   * 현재 상태 분석.
+   * @param N 2 또는 3
+   * @param state 해당 N 큐브의 상태 배열
+   * @param opts { preferFront: 'F'|'R'|'B'|'L', assign2: 이전 2×2 배색 번호 }
+   * 반환: { supported, solved, stages:[{key,name,done,current}], stage, segments:[{title,desc,moves}], front, fragile, assign2 }
+   */
+  function analyze(N, state, opts = {}) {
+    if (N !== 2 && N !== 3) return { supported: false };
+    const pref = opts.preferFront || 'F';
+    let S, cc, order, assign2 = null;
+    if (N === 3) {
+      S = state; cc = centers(S); order = ORDER3;
+    } else {
+      assign2 = chooseAssignment(state, opts.assign2);
+      cc = assignment(assign2);
+      S = embed2(state, cc); order = ORDER2;
+    }
+    let curIdx = order.length;
+    for (let i = 0; i < order.length; i++) { if (!stageDone(order[i], S, cc)) { curIdx = i; break; } }
+    const stages = order.map((k, i) => ({ key: k, name: STAGES[k].name, done: i < curIdx, current: i === curIdx }));
+    const base = { supported: true, stages, assign2, centers: cc };
+    if (curIdx >= order.length) return Object.assign(base, { solved: true, segments: [] });
+
+    const key = order[curIdx];
+    const st = STAGES[key];
+    const stageInfo = { key, index: curIdx, name: st.name, goal: st.goal };
+
+    if (key === 'orient') {
+      // 흰색 센터를 아래로: 회전 후보 중 가장 짧은 것
+      const opts2 = ['x', "x'", 'x2', 'z', "z'"];
+      for (const r of opts2) {
+        const s = run(S, r, pref);
+        if (s[CENTER.D] === SOLVED_COLOR.D) {
+          return Object.assign(base, {
+            stage: stageInfo, front: pref, fragile: false,
+            segments: [{ title: '큐브 전체 돌리기', desc: `흰색 센터가 지금 ${faceKo(whereColor(S, SOLVED_COLOR.D))}에 있습니다. 큐브 전체를 돌려 흰색 센터를 아래로 보냅니다.`, moves: tokens(r) }],
+          });
+        }
+      }
+    }
+
+    if (key === 'ycornerori') {
+      const segs = planOrient(S, cc, pref);
+      return Object.assign(base, { stage: stageInfo, front: pref, fragile: true, segments: segs || [] , error: segs ? null : 'plan-failed' });
+    }
+
+    const step = greedyStep(S, cc, st, pref, N === 2);
+    if (!step) return Object.assign(base, { stage: stageInfo, front: pref, segments: [], error: 'no-step' });
+
+    const segs = [];
+    if (step.adj) {
+      segs.push({ title: '윗면 돌려 위치 맞추기', desc: '공식을 쓰기 전에 윗면(U)만 돌려 조각을 알맞은 자리 위로 옮깁니다.', moves: tokens(step.adj) });
+    }
+    if (step.cand.alg) {
+      let desc = step.cand.desc;
+      const focus = describeFocus(key, run(S, step.adj, step.front), step.after, cc, st);
+      if (key === 'ycross') desc = `지금 윗면 모양: ${st.shape(S, cc)}. ` + desc;
+      segs.push({ title: step.cand.title, desc, focus, moves: tokens(step.cand.alg), unit: step.cand.unit, rep: step.cand.rep });
+    }
+    return Object.assign(base, {
+      stage: stageInfo, front: step.front, fragile: false, segments: segs,
+      holdText: `${sideName(cc, step.front)}을 정면으로, ${colorName(cc.U)} 센터를 위로 잡습니다.`,
+    });
+  }
+
+  function whereColor(S, color) { return FACES.find((f) => S[CENTER[f]] === color); }
+  function faceKo(f) { return { U: '윗면', D: '아랫면', F: '앞면', B: '뒷면', R: '오른쪽 면', L: '왼쪽 면' }[f]; }
+
+  const Tutor = { analyze, STAGES, ORDER3, ORDER2 };
+  if (typeof module !== 'undefined' && module.exports) module.exports = Tutor;
+  else root.Tutor = Tutor;
+})(typeof window !== 'undefined' ? window : globalThis);
+
+</script>
+<script>
+/* app.js — 3D 렌더링(three.js), 입력(마우스·터치·키보드), 혼자 풀기/스터디 모드 */
+(function () {
+  'use strict';
+  const { Cube, FACE, SIDES, COLOR_NAMES, parseMove, formatMove, invert, relToAbs, absToRel, sameMove } = window.CubeLib;
+  const Tutor = window.Tutor;
+  const $ = (id) => document.getElementById(id);
+
+  const PALETTE = [0xf2f2ec, 0xffd500, 0x009b48, 0x0a4fc4, 0xc8102e, 0xff6a00, 0x30363d];
+  const CSS_COLOR = ['#f2f2ec', '#ffd500', '#009b48', '#0a4fc4', '#c8102e', '#ff6a00', '#30363d'];
+  const PUZZLES = [
+    { N: 2, name: '2×2', sub: '포켓 큐브' },
+    { N: 3, name: '3×3', sub: '기본 큐브' },
+    { N: 4, name: '4×4', sub: '리벤지' },
+    { N: 5, name: '5×5', sub: '프로페서' },
+    { N: 6, name: '6×6', sub: 'V-큐브 6' },
+    { N: 7, name: '7×7', sub: 'V-큐브 7' },
+  ];
+  const SCRAMBLE_LEN = { 2: 11, 3: 22, 4: 40, 5: 60, 6: 80, 7: 100 };
+  const VIEW_OFFSET = 0.6; // 정면 + 오른쪽 면이 함께 보이도록 살짝 비튼 각도
+  const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  const S = {
+    N: 3,
+    cube: null,
+    mode: 'free',
+    history: [],
+    queue: [],
+    anim: null,
+    moveCount: 0,
+    timer: { armed: false, running: false, start: 0, elapsed: 0 },
+    scrambled: false,
+    pendingDepth: 0,
+    held: [],
+    study: { a: null, steps: [], map: new Map(), pointer: 0, dev: [], assign2: null },
+  };
+
+  // ---------------- three.js 장면 ----------------
+  const stageEl = $('stage');
+  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  stageEl.insertBefore(renderer.domElement, stageEl.firstChild);
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 200);
+  scene.add(camera);
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x2a3440, 0.85));
+  const keyLight = new THREE.DirectionalLight(0xffffff, 0.55);
+  keyLight.position.set(2, 3, 4);
+  camera.add(keyLight);
+  const cubeGroup = new THREE.Group();
+  scene.add(cubeGroup);
+
+  const view = { theta: VIEW_OFFSET, phi: 0.52, tTheta: VIEW_OFFSET, tPhi: 0.52, dist: 12 };
+
+  let cubies = new Map();
+  let stickers = [];
+  const bodyMat = new THREE.MeshStandardMaterial({ color: 0x0d1013, roughness: 0.55, metalness: 0.05 });
+
+  function roundedRect(size, r) {
+    const s = size / 2;
+    const sh = new THREE.Shape();
+    sh.moveTo(-s + r, -s);
+    sh.lineTo(s - r, -s); sh.quadraticCurveTo(s, -s, s, -s + r);
+    sh.lineTo(s, s - r); sh.quadraticCurveTo(s, s, s - r, s);
+    sh.lineTo(-s + r, s); sh.quadraticCurveTo(-s, s, -s, s - r);
+    sh.lineTo(-s, -s + r); sh.quadraticCurveTo(-s, -s, -s + r, -s);
+    return new THREE.ShapeGeometry(sh, 4);
+  }
+
+  function buildMeshes() {
+    while (cubeGroup.children.length) {
+      const c = cubeGroup.children.pop();
+      c.traverse((o) => { if (o.material && o.material !== bodyMat) o.material.dispose(); });
+    }
+    cubies = new Map();
+    stickers = [];
+    const cube = S.cube;
+    const boxGeo = new THREE.BoxGeometry(0.97, 0.97, 0.97);
+    const stGeo = roundedRect(0.84, 0.12);
+    cube.slots.forEach((sl, i) => {
+      const k = sl.p.join(',');
+      let c = cubies.get(k);
+      if (!c) {
+        const g = new THREE.Group();
+        g.position.set(sl.p[0] / 2, sl.p[1] / 2, sl.p[2] / 2);
+        g.add(new THREE.Mesh(boxGeo, bodyMat));
+        cubeGroup.add(g);
+        c = { group: g, p: sl.p };
+        cubies.set(k, c);
+      }
+      const mat = new THREE.MeshStandardMaterial({ color: PALETTE[cube.state[i]], roughness: 0.38, metalness: 0.0, emissive: 0x000000 });
+      const m = new THREE.Mesh(stGeo, mat);
+      const n = sl.n;
+      m.position.set(n[0] * 0.487, n[1] * 0.487, n[2] * 0.487);
+      if (n[0] === 1) m.rotation.y = Math.PI / 2;
+      else if (n[0] === -1) m.rotation.y = -Math.PI / 2;
+      else if (n[1] === 1) m.rotation.x = -Math.PI / 2;
+      else if (n[1] === -1) m.rotation.x = Math.PI / 2;
+      else if (n[2] === -1) m.rotation.y = Math.PI;
+      m.userData.slot = i;
+      c.group.add(m);
+      stickers[i] = m;
+    });
+    view.dist = S.N * 2.15 + 4.2;
+    recolor();
+  }
+
+  function recolor() {
+    const st = S.cube.state;
+    for (let i = 0; i < stickers.length; i++) stickers[i].material.color.setHex(PALETTE[st[i]]);
+  }
+
+  function resize() {
+    const w = stageEl.clientWidth, h = stageEl.clientHeight;
+    renderer.setSize(w, h, false);
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+  }
+  window.addEventListener('resize', resize);
+
+  function updateCamera() {
+    const k = 0.2;
+    view.theta += (view.tTheta - view.theta) * k;
+    view.phi += (view.tPhi - view.phi) * k;
+    const { theta, phi } = view;
+    const d = view.dist * (camera.aspect < 1 ? 1 + (1 - camera.aspect) * 0.9 : 1);
+    camera.position.set(d * Math.sin(theta) * Math.cos(phi), d * Math.sin(phi), d * Math.cos(theta) * Math.cos(phi));
+    camera.lookAt(0, 0, 0);
+  }
+
+  /** 지금 화면 정면에 보이는 면 (U는 항상 위) */
+  function viewFront(theta = view.tTheta) {
+    const idx = ((Math.round(theta / (Math.PI / 2)) % 4) + 4) % 4;
+    return SIDES[idx];
+  }
+  function alignTo(front) {
+    const idx = SIDES.indexOf(front);
+    const base = idx * Math.PI / 2 + VIEW_OFFSET;
+    const k = Math.round((view.tTheta - base) / (2 * Math.PI));
+    view.tTheta = base + k * 2 * Math.PI;
+    if (view.tPhi < 0.2) view.tPhi = 0.52;
+    updateHud();
+  }
+
+  // ---------------- 이동 실행 ----------------
+  function enqueue(move, source) {
+    S.queue.push({ move, source });
+  }
+  function busyScrambling() { return S.queue.some((q) => q.source === 'scramble') || (S.anim && S.anim.item.source === 'scramble'); }
+
+  function startNext(now) {
+    const item = S.queue.shift();
+    if (!item) return;
+    const g = S.cube.geometry(item.move);
+    let dur = item.move.t === 2 ? 240 : 170;
+    if (item.source === 'scramble') dur = Math.max(22, Math.min(70, 1400 / SCRAMBLE_LEN[S.N]));
+    else if (S.queue.length > 2) dur = 95;
+    if (reduceMotion) dur = 0;
+    const pivot = new THREE.Object3D();
+    cubeGroup.add(pivot);
+    const moved = [];
+    cubies.forEach((c) => { if (g.layers.includes(c.p[g.axis])) { pivot.attach(c.group); moved.push(c); } });
+    const target = (g.q === 3 ? -1 : g.q) * Math.PI / 2;
+    S.anim = { item, pivot, moved, axis: ['x', 'y', 'z'][g.axis], target, start: now, dur };
+  }
+
+  function finishAnim() {
+    const a = S.anim;
+    a.moved.forEach((c) => {
+      cubeGroup.attach(c.group);
+      c.group.position.set(c.p[0] / 2, c.p[1] / 2, c.p[2] / 2);
+      c.group.rotation.set(0, 0, 0);
+    });
+    cubeGroup.remove(a.pivot);
+    S.anim = null;
+    S.cube.apply(a.item.move);
+    recolor();
+    onApplied(a.item);
+  }
+
+  function tickAnim(now) {
+    if (!S.anim && S.queue.length) startNext(now);
+    const a = S.anim;
+    if (!a) return;
+    const t = a.dur ? Math.min(1, (now - a.start) / a.dur) : 1;
+    const e = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+    a.pivot.rotation[a.axis] = a.target * e;
+    if (t >= 1) finishAnim();
+  }
+
+  function onApplied(item) {
+    const src = item.source;
+    if (src === 'scramble') {
+      if (!S.queue.length) onScrambleDone();
+      return;
+    }
+    S.moveCount++;
+    if (src !== 'undo') S.history.push(item.move);
+    if (S.timer.armed && !S.timer.running) { S.timer.running = true; S.timer.start = performance.now(); }
+    $('moveCount').textContent = S.moveCount;
+    if (S.mode === 'study') studyTrack(item.move);
+    updateHud();
+    if (S.scrambled && S.cube.isSolved()) onSolved();
+    else if (S.mode === 'study') renderStudy();
+    updateHighlight();
+  }
+
+  function userMove(move) {
+    if (busyScrambling()) return;
+    hideBanner();
+    enqueue(move, 'user');
+  }
+
+  // ---------------- 섞기 / 완성 ----------------
+  function scramble() {
+    if (busyScrambling()) return;
+    S.queue = [];
+    if (S.anim) finishAnim();
+    S.cube.state = S.cube.solvedState();
+    recolor();
+    resetStats();
+    hideBanner();
+    S.cube.scramble(SCRAMBLE_LEN[S.N]).forEach((m) => enqueue(m, 'scramble'));
+    S.study.a = null; S.study.steps = [];
+    renderStudy();
+  }
+  function onScrambleDone() {
+    S.scrambled = true;
+    S.timer.armed = true;
+    toast(S.mode === 'study' ? '섞었습니다. 단계별 안내를 따라 해 보세요.' : '섞었습니다. 첫 동작부터 시간이 잽니다.');
+    if (S.mode === 'study') studyCompute();
+    updateHighlight();
+  }
+  function resetStats() {
+    S.history = [];
+    S.moveCount = 0;
+    S.timer = { armed: false, running: false, start: 0, elapsed: 0 };
+    S.scrambled = false;
+    $('moveCount').textContent = '0';
+    $('timer').textContent = fmtTime(0);
+  }
+  function resetCube() {
+    S.queue = [];
+    if (S.anim) finishAnim();
+    S.cube.state = S.cube.solvedState();
+    recolor();
+    resetStats();
+    hideBanner();
+    if (S.mode === 'study') studyCompute();
+    updateHighlight();
+  }
+  function undo() {
+    if (busyScrambling() || S.anim || S.queue.length) return;
+    const m = S.history.pop();
+    if (!m) { toast('되돌릴 동작이 없습니다.'); return; }
+    enqueue(invert(m), 'undo');
+  }
+
+  function onSolved() {
+    const t = S.timer.running ? performance.now() - S.timer.start : S.timer.elapsed;
+    S.timer.running = false; S.timer.armed = false; S.timer.elapsed = t;
+    S.scrambled = false;
+    $('timer').textContent = fmtTime(t);
+    let bestNote = '';
+    if (S.mode === 'free') {
+      const prev = loadBest(S.N);
+      if (!prev || t < prev) { saveBest(S.N, t); bestNote = ' · 새 최고 기록'; }
+      showBest();
+    }
+    showBanner('완성!', `${fmtTime(t)} · ${S.moveCount}수${bestNote}`);
+    if (S.mode === 'study') studyCompute();
+  }
+
+  function fmtTime(ms) {
+    const cs = Math.floor(ms / 10);
+    const m = Math.floor(cs / 6000), s = Math.floor(cs / 100) % 60, c = cs % 100;
+    return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0') + '.' + String(c).padStart(2, '0');
+  }
+  function loadBest(N) { try { const v = localStorage.getItem('cubelab-best-' + N); return v ? Number(v) : null; } catch (e) { return null; } }
+  function saveBest(N, t) { try { localStorage.setItem('cubelab-best-' + N, String(Math.round(t))); } catch (e) { /* 저장 불가 */ } }
+  function showBest() { const b = loadBest(S.N); $('best').textContent = b ? fmtTime(b) : '—'; }
+
+  function showBanner(title, text) {
+    $('bannerTitle').textContent = title;
+    $('bannerText').textContent = text;
+    $('banner').hidden = false;
+  }
+  function hideBanner() { $('banner').hidden = true; }
+  let toastTimer = 0;
+  function toast(msg) {
+    const el = $('toast');
+    el.textContent = msg; el.hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { el.hidden = true; }, 2600);
+  }
+
+  // ---------------- 이동 설명 / 키 안내 ----------------
+  function moveSentence(m) {
+    // m: 보는 방향 기준 상대 이동
+    const N = S.N;
+    const half = m.t === 2;
+    if (m.lo === 1 && m.hi === N) {
+      const txt = {
+        R: ['큐브 전체를 앞쪽이 위로 가게 굴리기', '큐브 전체를 앞쪽이 아래로 가게 굴리기'],
+        L: ['큐브 전체를 앞쪽이 아래로 가게 굴리기', '큐브 전체를 앞쪽이 위로 가게 굴리기'],
+        U: ['큐브 전체를 왼쪽으로 돌리기', '큐브 전체를 오른쪽으로 돌리기'],
+        D: ['큐브 전체를 오른쪽으로 돌리기', '큐브 전체를 왼쪽으로 돌리기'],
+        F: ['큐브 전체를 시계 방향으로 기울이기', '큐브 전체를 반시계 방향으로 기울이기'],
+        B: ['큐브 전체를 반시계 방향으로 기울이기', '큐브 전체를 시계 방향으로 기울이기'],
+      }[m.f];
+      return half ? txt[0] + ' (두 번)' : txt[m.t === 1 ? 0 : 1];
+    }
+    const base = {
+      U: ['윗층을 왼쪽으로', '윗층을 오른쪽으로'],
+      D: ['아래층을 오른쪽으로', '아래층을 왼쪽으로'],
+      R: ['오른쪽 줄을 위로', '오른쪽 줄을 아래로'],
+      L: ['왼쪽 줄을 아래로', '왼쪽 줄을 위로'],
+      F: ['앞면을 시계 방향으로', '앞면을 반시계 방향으로'],
+      B: ['뒷면을 (앞에서 볼 때) 반시계 방향으로', '뒷면을 (앞에서 볼 때) 시계 방향으로'],
+    }[m.f];
+    let pre = '';
+    if (m.lo === m.hi && m.lo > 1) pre = `바깥에서 ${m.lo}번째 층만 `;
+    else if (m.lo === 1 && m.hi > 1) pre = `바깥 ${m.hi}개 층을 함께 `;
+    return pre + (half ? base[0] + ' 두 번 (180°)' : base[m.t === 1 ? 0 : 1]);
+  }
+
+  function keyHint(m) {
+    const N = S.N;
+    if (m.lo === 1 && m.hi === N) {
+      const map = { R: ['Shift + ↑', 'Shift + ↓'], L: ['Shift + ↓', 'Shift + ↑'], U: ['Shift + ←', 'Shift + →'], D: ['Shift + →', 'Shift + ←'], F: ['Shift + E', 'Shift + Q'], B: ['Shift + Q', 'Shift + E'] }[m.f];
+      return m.t === 2 ? map[0] + ' 두 번' : map[m.t === 1 ? 0 : 1];
+    }
+    const map = { U: ['W + ←', 'W + →'], D: ['S + →', 'S + ←'], R: ['D + ↑', 'D + ↓'], L: ['A + ↓', 'A + ↑'], F: ['E', 'Q'], B: ['Z', 'C'] }[m.f];
+    let base = m.t === 2 ? map[0] + ' 두 번' : map[m.t === 1 ? 0 : 1];
+    if (m.lo === m.hi && m.lo > 1) base = `숫자 ${m.lo} 누른 뒤 ` + base;
+    else if (m.lo === 1 && m.hi > 1) base = (m.hi > 2 ? `숫자 ${m.hi} 누른 뒤 ` : '') + 'Shift + ' + base;
+    return base;
+  }
+  function kbdHtml(hint) {
+    return hint.split(' ').map((p) => (['+', '두', '번', '누른', '뒤', '숫자'].includes(p) ? p : `<kbd>${p}</kbd>`)).join(' ');
+  }
+
+  // ---------------- 스터디 ----------------
+  function studyCompute(reason) {
+    const st = S.study;
+    if (S.mode !== 'study') return;
+    const a = Tutor.analyze(S.N, S.cube.state, { preferFront: viewFront(), assign2: st.assign2 });
+    st.a = a;
+    st.assign2 = a.assign2;
+    st.steps = [];
+    st.map = new Map();
+    st.pointer = 0;
+    st.dev = [];
+    if (a.supported && !a.solved && a.segments.length) {
+      a.segments.forEach((seg, si) => seg.moves.forEach((tok, mi) => {
+        st.steps.push({ si, mi, tok, abs: relToAbs(parseMove(tok, S.N), a.front) });
+      }));
+      let s = S.cube.state;
+      st.map.set(Cube.stateKey(s), { p: 0 });
+      st.steps.forEach((step, i) => {
+        if (step.abs.t === 2) {
+          for (const t of [1, -1]) {
+            const q = Object.assign({}, step.abs, { t });
+            st.map.set(Cube.stateKey(S.cube.applyTo(s, q)), { p: i + 0.5, rest: q });
+          }
+        }
+        s = S.cube.applyTo(s, step.abs);
+        if (!st.map.has(Cube.stateKey(s))) st.map.set(Cube.stateKey(s), { p: i + 1 });
+      });
+      if (viewFront() !== a.front) alignTo(a.front);
+    }
+    if (reason) toast(reason);
+    renderStudy();
+    updateHighlight();
+  }
+
+  function studyTrack(move) {
+    const st = S.study;
+    if (!st.a || !st.a.supported) return;
+    if (st.a.solved || !st.steps.length) { studyCompute(); return; }
+    const hit = st.map.get(Cube.stateKey(S.cube.state));
+    if (hit) {
+      st.pointer = hit.p;
+      st.dev = [];
+      if (st.pointer >= st.steps.length) {
+        const prev = st.a.stage && st.a.stage.key;
+        studyCompute();
+        const now = st.a && st.a.stage && st.a.stage.key;
+        if (st.a && st.a.solved) return;
+        if (prev !== now) toast(`좋아요! 다음 단계: ${st.a.stage.name}`);
+      }
+      return;
+    }
+    if (st.a.fragile && st.dev.length < 6) {
+      const top = st.dev[st.dev.length - 1];
+      if (top && sameMove(move, invert(top))) st.dev.pop();
+      else st.dev.push(move);
+      return;
+    }
+    studyCompute('계획과 다른 동작이라 현재 상태를 다시 분석했습니다.');
+  }
+
+  /** 다음에 할 절대 이동 */
+  function studyNextMove() {
+    const st = S.study;
+    if (!st.a || !st.a.supported || st.a.solved) return null;
+    if (st.dev.length) return invert(st.dev[st.dev.length - 1]);
+    const i = Math.floor(st.pointer);
+    if (i >= st.steps.length) return null;
+    const hit = st.map.get(Cube.stateKey(S.cube.state));
+    if (hit && hit.rest) return hit.rest;
+    return st.steps[i].abs;
+  }
+
+  function studyAutoOne() {
+    if (S.mode !== 'study' || S.anim || S.queue.length) return;
+    const m = studyNextMove();
+    if (m) { hideBanner(); enqueue(m, 'auto'); }
+  }
+  function studyAutoSegment() {
+    if (S.mode !== 'study' || S.anim || S.queue.length) return;
+    const st = S.study;
+    if (st.dev.length) { for (let i = st.dev.length - 1; i >= 0; i--) enqueue(invert(st.dev[i]), 'auto'); return; }
+    const m = studyNextMove();
+    if (!m) return;
+    hideBanner();
+    let i = Math.floor(st.pointer);
+    const si = st.steps[i].si;
+    enqueue(m, 'auto');
+    for (i = i + 1; i < st.steps.length && st.steps[i].si === si; i++) enqueue(st.steps[i].abs, 'auto');
+  }
+
+  function swatch(c) { return `<span class="swatch" style="background:${CSS_COLOR[c]}"></span>`; }
+
+  function renderStudy() {
+    const box = $('study');
+    box.hidden = S.mode !== 'study';
+    if (S.mode !== 'study') return;
+    const body = $('studyBody');
+    const st = S.study;
+    const a = st.a;
+    if (busyScrambling()) { body.innerHTML = '<p class="goal">섞는 중…</p>'; return; }
+    if (!a) { body.innerHTML = '<p class="goal">분석 중…</p>'; return; }
+    if (!a.supported) {
+      body.innerHTML = `<h2 class="block-title">스터디</h2>
+        <p class="goal">${S.N}×${S.N} 스터디 안내는 아직 없습니다. 지금은 <b>2×2</b>와 <b>3×3</b>의 초보자 층별 공식법을 단계별로 안내합니다.</p>
+        <p class="goal">큰 큐브는 센터를 모으고 엣지를 짝지어 3×3처럼 만든 뒤(리덕션) 3×3 방법으로 맞춥니다. 이 화면에서는 혼자 돌려 보며 연습할 수 있습니다.</p>
+        <div class="study-actions"><button class="btn btn-small" type="button" data-n="3">3×3로 바꾸기</button><button class="btn btn-small" type="button" data-n="2">2×2로 바꾸기</button></div>`;
+      body.querySelectorAll('[data-n]').forEach((b) => b.addEventListener('click', () => setPuzzle(Number(b.dataset.n))));
+      return;
+    }
+    const stagesHtml = `<ol class="stages">${a.stages.map((s, i) => `<li class="${s.done ? 'done' : ''} ${s.current ? 'current' : ''}"><span class="dot">${s.done ? '✓' : i + 1}</span><span>${s.name}</span></li>`).join('')}</ol>`;
+    if (a.solved) {
+      body.innerHTML = `<h2 class="block-title">스터디 · 진행 단계</h2>${stagesHtml}
+        <p class="goal">${S.cube.isSolved() ? '큐브가 완성된 상태입니다. <b>섞기</b>를 누르면 처음 단계부터 안내합니다.' : ''}</p>`;
+      return;
+    }
+    if (!a.segments.length) {
+      body.innerHTML = `<h2 class="block-title">스터디</h2>${stagesHtml}<p class="goal">이 상태에서 다음 공식을 찾지 못했습니다. <b>초기화</b> 후 다시 섞어 주세요.</p>`;
+      return;
+    }
+    const vf = viewFront();
+    const cc = a.centers;
+    const holdOk = vf === a.front;
+    const frontColor = cc[a.front];
+    const hold = `<div class="hold ${holdOk ? '' : 'mismatch'}">
+        <span>${swatch(frontColor)} <b>${COLOR_NAMES[frontColor]}</b> 면을 정면, ${swatch(cc.U)} ${COLOR_NAMES[cc.U]} 위 ${holdOk ? '· 맞게 보고 있어요' : '· <b>시점이 다릅니다</b>'}</span>
+        ${holdOk ? '' : '<button class="btn btn-small" type="button" id="btnAlign">시점 맞추기</button>'}
+      </div>`;
+
+    const cur = Math.floor(st.pointer);
+    const isHalf = st.pointer % 1 !== 0;
+    const curSeg = cur < st.steps.length ? st.steps[cur].si : a.segments.length;
+    const segsHtml = a.segments.map((seg, si) => {
+      const cls = si < curSeg ? 'past' : si === curSeg ? 'active' : '';
+      let idx = st.steps.findIndex((x) => x.si === si);
+      const unitLen = seg.unit ? seg.unit.split(' ').length : 0;
+      const chips = seg.moves.map((tok, mi) => {
+        const gi = idx + mi;
+        const c = gi < cur ? 'done' : gi === cur ? (isHalf ? 'half' : 'now') : '';
+        const sep = unitLen && mi > 0 && mi % unitLen === 0 ? '<span class="mv-sep"></span>' : '';
+        return `${sep}<span class="mv ${c}">${tok}</span>`;
+      }).join('');
+      return `<div class="seg-card ${cls}">
+          <h3>${seg.title}</h3>
+          <div class="moves">${chips}</div>
+          ${si === curSeg ? `<p>${seg.desc}</p>${seg.focus ? `<p class="focus">${seg.focus}</p>` : ''}` : ''}
+        </div>`;
+    }).join('');
+
+    let nextHtml = '';
+    const nm = studyNextMove();
+    if (nm) {
+      const rel = absToRel(nm, vf);
+      const undoing = st.dev.length > 0;
+      nextHtml = `<div class="next ${undoing ? 'undo' : ''}">
+          <span class="big">${formatMove(rel, S.N)}</span>
+          <span class="what">${undoing ? '계획과 다르게 돌렸어요. 되돌리기: ' : ''}${moveSentence(rel)}${isHalf && !undoing ? ' (한 번 더)' : ''}</span>
+          <span class="how">${kbdHtml(keyHint(rel))}</span>
+        </div>`;
+    }
+
+    body.innerHTML = `<h2 class="block-title">스터디 · ${a.stage.index + 1}단계 / ${a.stages.length}</h2>
+      ${stagesHtml}
+      <div><h3 style="margin:4px 0 2px;font-size:16px">${a.stage.name}</h3><p class="goal">${a.stage.goal}</p>${S.N === 2 ? '<p class="note">2×2는 센터가 없어서, 아래 흰색 코너를 기준으로 각 면의 목표 색을 정합니다.</p>' : ''}</div>
+      ${hold}
+      ${nextHtml}
+      ${segsHtml}
+      <div class="study-actions">
+        <button class="btn btn-small" type="button" id="btnNext">한 수 자동 <kbd>Space</kbd></button>
+        <button class="btn btn-small" type="button" id="btnSeg">이 공식 자동 <kbd>Enter</kbd></button>
+        <button class="btn btn-small" type="button" id="btnReanalyze">다시 분석</button>
+      </div>
+      <p class="note">공식 칩은 위에 적힌 면을 정면으로 들었을 때 기준입니다. 노란 칸 아래의 키 안내는 지금 보는 방향 기준이라 그대로 누르면 됩니다.</p>`;
+    const ba = $('btnAlign'); if (ba) ba.addEventListener('click', () => { alignTo(a.front); renderStudy(); });
+    $('btnNext').addEventListener('click', studyAutoOne);
+    $('btnSeg').addEventListener('click', studyAutoSegment);
+    $('btnReanalyze').addEventListener('click', () => studyCompute('현재 상태를 다시 분석했습니다.'));
+  }
+
+  // 다음 동작이 돌릴 층을 깜빡여 표시
+  let highlightSlots = new Set();
+  function updateHighlight() {
+    highlightSlots = new Set();
+    if (S.mode === 'study' && !busyScrambling()) {
+      const m = studyNextMove();
+      if (m && !(m.lo === 1 && m.hi === S.N)) S.cube.affectedSlots(m).forEach((i) => highlightSlots.add(i));
+    }
+    stickers.forEach((s, i) => { if (!highlightSlots.has(i)) s.material.emissive.setHex(0x000000); });
+  }
+  function pulseHighlight(now) {
+    if (!highlightSlots.size || S.anim) return;
+    const v = 0.1 + 0.16 * (0.5 + 0.5 * Math.sin(now / 170));
+    const col = new THREE.Color(v, v * 0.85, v * 0.35);
+    highlightSlots.forEach((i) => stickers[i].material.emissive.copy(col));
+  }
+
+  // ---------------- HUD ----------------
+  function updateHud() {
+    const f = viewFront();
+    let html = `정면 <b>${f}</b>`;
+    if (S.N % 2 === 1) {
+      const sl = S.cube.slotsByFace[f][Math.floor(S.cube.slotsByFace[f].length / 2)];
+      const c = S.cube.state[sl];
+      html = `${swatch(c)} 정면: ${COLOR_NAMES[c]} (F)`;
+    } else if (S.mode === 'study' && S.study.a && S.study.a.centers) {
+      const c = S.study.a.centers[f];
+      html = `${swatch(c)} 정면: ${COLOR_NAMES[c]} 기준 (F)`;
+    }
+    $('hudFront').innerHTML = html;
+    const d = $('hudDepth');
+    if (S.pendingDepth > 1) { d.hidden = false; d.textContent = `다음 이동: 바깥에서 ${S.pendingDepth}번째 층`; }
+    else d.hidden = true;
+  }
+  let lastFront = null;
+
+  // ---------------- 키보드 ----------------
+  function relMove(f, t, opts = {}) {
+    const N = S.N;
+    let lo = 1, hi = 1;
+    if (opts.all) { lo = 1; hi = N; }
+    else if (opts.wide) { lo = 1; hi = Math.max(2, Math.min(S.pendingDepth || 2, Math.ceil(N / 2))); if (N === 2) hi = 1; }
+    else if (S.pendingDepth > 1) { lo = hi = S.pendingDepth; }
+    S.pendingDepth = 0;
+    updateHud();
+    return relToAbs({ f, lo, hi, t }, viewFront());
+  }
+
+  const ARROWS = { ArrowLeft: 'L', ArrowRight: 'R', ArrowUp: 'U', ArrowDown: 'D' };
+  function onKeyDown(e) {
+    const tag = (e.target && e.target.tagName) || '';
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+    if (e.ctrlKey || e.metaKey || e.altKey) {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); undo(); }
+      return;
+    }
+    const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+    if (['w', 'a', 's', 'd'].includes(k)) {
+      e.preventDefault();
+      S.held = S.held.filter((x) => x !== k); S.held.push(k);
+      return;
+    }
+    if (ARROWS[k]) {
+      e.preventDefault();
+      if (e.repeat) return;
+      const dir = ARROWS[k];
+      const mod = S.held[S.held.length - 1];
+      if (mod) {
+        const table = {
+          w: { L: ['U', 1], R: ['U', -1] },
+          s: { L: ['D', -1], R: ['D', 1] },
+          a: { U: ['L', -1], D: ['L', 1] },
+          d: { U: ['R', 1], D: ['R', -1] },
+        }[mod][dir];
+        if (table) userMove(relMove(table[0], table[1], { wide: e.shiftKey }));
+        return;
+      }
+      if (e.shiftKey) {
+        const rt = { U: ['R', 1], D: ['R', -1], L: ['U', 1], R: ['U', -1] }[dir];
+        userMove(relMove(rt[0], rt[1], { all: true }));
+        return;
+      }
+      if (dir === 'L') view.tTheta += Math.PI / 2;
+      else if (dir === 'R') view.tTheta -= Math.PI / 2;
+      else if (dir === 'U') view.tPhi = 0.52;
+      else view.tPhi = -0.52;
+      return;
+    }
+    if (e.repeat) return;
+    const fb = { e: ['F', 1], q: ['F', -1], z: ['B', 1], c: ['B', -1] }[k];
+    if (fb) {
+      e.preventDefault();
+      if (e.shiftKey && (k === 'e' || k === 'q')) userMove(relMove('F', fb[1], { all: true }));
+      else if (!e.shiftKey) userMove(relMove(fb[0], fb[1]));
+      return;
+    }
+    if (/^[1-9]$/.test(k)) {
+      const d = Number(k);
+      const max = Math.ceil(S.N / 2);
+      if (d <= max) { S.pendingDepth = d === 1 ? 0 : d; updateHud(); }
+      else toast(`${S.N}×${S.N}에서는 ${max}번째 층까지 고를 수 있습니다.`);
+      return;
+    }
+    if (k === ' ') { e.preventDefault(); studyAutoOne(); return; }
+    if (k === 'Enter') { e.preventDefault(); studyAutoSegment(); return; }
+    if (k === 'Backspace') { e.preventDefault(); undo(); return; }
+    if (k === 'Escape') { S.pendingDepth = 0; updateHud(); }
+  }
+  function onKeyUp(e) {
+    const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+    S.held = S.held.filter((x) => x !== k);
+    if (e.key === 'Shift') return;
+  }
+  window.addEventListener('keydown', onKeyDown);
+  window.addEventListener('keyup', onKeyUp);
+  window.addEventListener('blur', () => { S.held = []; });
+
+  // ---------------- 마우스 / 터치 ----------------
+  const ray = new THREE.Raycaster();
+  let drag = null;
+  function ndc(ev) {
+    const r = renderer.domElement.getBoundingClientRect();
+    return new THREE.Vector2(((ev.clientX - r.left) / r.width) * 2 - 1, -((ev.clientY - r.top) / r.height) * 2 + 1);
+  }
+  renderer.domElement.addEventListener('pointerdown', (ev) => {
+    stageEl.focus({ preventScroll: true });
+    renderer.domElement.setPointerCapture(ev.pointerId);
+    ray.setFromCamera(ndc(ev), camera);
+    const hits = ray.intersectObjects(stickers, false);
+    if (hits.length && !busyScrambling()) {
+      drag = { type: 'turn', slot: hits[0].object.userData.slot, point: hits[0].point.clone(), x: ev.clientX, y: ev.clientY, done: false };
+    } else {
+      drag = { type: 'orbit', x: ev.clientX, y: ev.clientY, theta: view.tTheta, phi: view.tPhi };
+      stageEl.classList.add('dragging');
+    }
+  });
+  renderer.domElement.addEventListener('pointermove', (ev) => {
+    if (!drag) return;
+    const dx = ev.clientX - drag.x, dy = ev.clientY - drag.y;
+    if (drag.type === 'orbit') {
+      view.tTheta = drag.theta - dx * 0.008;
+      view.tPhi = Math.max(-1.25, Math.min(1.25, drag.phi + dy * 0.008));
+      view.theta = view.tTheta; view.phi = view.tPhi;
+      return;
+    }
+    if (drag.done || Math.hypot(dx, dy) < 12) return;
+    drag.done = true;
+    const m = moveFromDrag(drag.slot, drag.point, dx, dy);
+    if (m) userMove(m);
+  });
+  function endDrag() { drag = null; stageEl.classList.remove('dragging'); }
+  renderer.domElement.addEventListener('pointerup', endDrag);
+  renderer.domElement.addEventListener('pointercancel', endDrag);
+
+  function moveFromDrag(slot, point, dx, dy) {
+    const sl = S.cube.slots[slot];
+    const w = renderer.domElement.clientWidth, h = renderer.domElement.clientHeight;
+    const len = Math.hypot(dx, dy);
+    const dv = [dx / len, dy / len];
+    let best = null;
+    for (let a = 0; a < 3; a++) {
+      if (sl.n[a] !== 0) continue;
+      const axis = new THREE.Vector3(a === 0 ? 1 : 0, a === 1 ? 1 : 0, a === 2 ? 1 : 0);
+      const tan = new THREE.Vector3().crossVectors(axis, point).normalize();
+      const p0 = point.clone().project(camera);
+      const p1 = point.clone().add(tan.multiplyScalar(0.4)).project(camera);
+      let sx = (p1.x - p0.x) * w / 2, sy = -(p1.y - p0.y) * h / 2;
+      const sl2 = Math.hypot(sx, sy) || 1; sx /= sl2; sy /= sl2;
+      const dot = sx * dv[0] + sy * dv[1];
+      if (!best || Math.abs(dot) > Math.abs(best.dot)) best = { a, dot };
+    }
+    if (!best || Math.abs(best.dot) < 0.35) return null;
+    const q = best.dot > 0 ? 1 : -1;
+    const c = sl.p[best.a];
+    const pos = ['R', 'U', 'F'][best.a], neg = ['L', 'D', 'B'][best.a];
+    const f = c > 0 ? pos : neg;
+    const depth = (S.N - 1 - Math.abs(c)) / 2 + 1;
+    return { f, lo: depth, hi: depth, t: q * FACE[f].cw };
+  }
+
+  // ---------------- 화면 버튼 ----------------
+  function buildPad() {
+    const pad = $('pad');
+    const items = [['U', 1], ['U', -1], ['D', 1], ['D', -1], ['R', 1], ['R', -1], ['L', 1], ['L', -1], ['F', 1], ['F', -1], ['B', 1], ['B', -1], ['x', 0], ['y', 0], ["y'", 0], ['↶', 0]];
+    pad.innerHTML = '';
+    items.forEach(([f, t]) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = t === 0 ? f : f + (t === -1 ? "'" : '');
+      b.title = t === 0 ? (f === '↶' ? '되돌리기' : '큐브 전체 회전') : '보는 방향 기준 ' + b.textContent;
+      b.addEventListener('click', () => {
+        if (f === '↶') return undo();
+        if (f === 'x') return userMove(relMove('R', 1, { all: true }));
+        if (f === 'y') return userMove(relMove('U', 1, { all: true }));
+        if (f === "y'") return userMove(relMove('U', -1, { all: true }));
+        userMove(relMove(f, t));
+      });
+      pad.appendChild(b);
+    });
+  }
+
+  function buildPuzzles() {
+    const box = $('puzzles');
+    box.innerHTML = '';
+    PUZZLES.forEach((p) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'seg-btn';
+      b.setAttribute('role', 'radio');
+      b.dataset.n = p.N;
+      b.innerHTML = `${p.name}<small>${p.sub}${p.N <= 3 ? ' · 스터디' : ''}</small>`;
+      b.addEventListener('click', () => setPuzzle(p.N));
+      box.appendChild(b);
+    });
+  }
+  function syncButtons() {
+    document.querySelectorAll('#puzzles .seg-btn').forEach((b) => b.setAttribute('aria-checked', String(Number(b.dataset.n) === S.N)));
+    $('modeFree').setAttribute('aria-checked', String(S.mode === 'free'));
+    $('modeStudy').setAttribute('aria-checked', String(S.mode === 'study'));
+  }
+
+  function setPuzzle(N) {
+    S.queue = [];
+    if (S.anim) { cubeGroup.remove(S.anim.pivot); S.anim = null; }
+    S.N = N;
+    S.cube = new Cube(N);
+    S.study.assign2 = null;
+    buildMeshes();
+    resetStats();
+    hideBanner();
+    showBest();
+    syncButtons();
+    if (S.mode === 'study') studyCompute(); else renderStudy();
+    updateHud();
+    updateHighlight();
+  }
+  function setMode(mode) {
+    S.mode = mode;
+    syncButtons();
+    if (mode === 'study') studyCompute();
+    else { S.study.a = null; renderStudy(); }
+    updateHighlight();
+    updateHud();
+  }
+
+  $('modeFree').addEventListener('click', () => setMode('free'));
+  $('modeStudy').addEventListener('click', () => setMode('study'));
+  $('btnScramble').addEventListener('click', scramble);
+  $('btnReset').addEventListener('click', resetCube);
+  $('btnUndo').addEventListener('click', undo);
+  $('bannerBtn').addEventListener('click', scramble);
+  // 버튼을 누른 뒤 Space/Enter가 버튼을 다시 누르지 않도록 포커스를 큐브 화면으로 돌림
+  document.addEventListener('click', (e) => { const b = e.target.closest && e.target.closest('button'); if (b && e.detail > 0) stageEl.focus({ preventScroll: true }); });
+
+  // ---------------- 루프 ----------------
+  function frame(now) {
+    tickAnim(now);
+    updateCamera();
+    pulseHighlight(now);
+    const f = viewFront();
+    if (f !== lastFront) {
+      lastFront = f;
+      updateHud();
+      if (S.mode === 'study') { renderStudy(); }
+    }
+    if (S.timer.running) $('timer').textContent = fmtTime(now - S.timer.start);
+    renderer.render(scene, camera);
+    requestAnimationFrame(frame);
+  }
+
+  buildPuzzles();
+  buildPad();
+  setPuzzle(3);
+  resize();
+  requestAnimationFrame(frame);
+
+  // 첫 화면: 3×3 스터디 모드를 섞인 상태로 보여 줌 (사용자가 바로 따라 할 수 있게)
+  setMode('study');
+  scramble();
+
+  window.__cubeApp = { S, viewFront, studyNextMove };
+})();
+
+</script>
